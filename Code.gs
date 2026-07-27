@@ -20,6 +20,9 @@
 // חייב להיות זהה לסיסמה שב-index.html (CONFIG.ADMIN_PASSWORD)
 const ADMIN_TOKEN = "albatross";
 
+// כתובת המייל שתקבל התראה על כל בקשה חדשה (רק אתה). השאר ריק כדי לכבות.
+const NOTIFY_EMAIL = "eladn2006@gmail.com";
+
 // אם הסקריפט משויך לגליון (Container-bound) השאר ריק.
 // אחרת הדבק כאן את מזהה ה-Spreadsheet (מתוך כתובת ה-URL שלו).
 const SPREADSHEET_ID = "";
@@ -105,7 +108,31 @@ function createRequest_(body) {
     status: "pending"
   };
   sh.appendRow(HEADERS.map(h => row[h]));
+  notifyAdmin_(row); // התראת מייל אליך בלבד — לא מפילה את הבקשה אם נכשלת
   return { ok: true, id: id };
+}
+
+/* ---------- התראת מייל למנהל על בקשה חדשה ---------- */
+function notifyAdmin_(row) {
+  if (!NOTIFY_EMAIL) return;
+  try {
+    const typeLine = row.type ? "\nסוג: " + row.type : "";
+    const body =
+      "התקבלה בקשת לו\"ז חדשה ליחידת אלבטרוס:\n\n" +
+      "שם הלו\"ז: " + row.scheduleName + "\n" +
+      "מבקש: " + row.requesterName + "\n" +
+      "תאריך: " + row.date + "\n" +
+      "שעות: " + row.startTime + "–" + row.endTime +
+      typeLine + "\n\n" +
+      "היכנס למסך הבקרה כדי לאשר או לדחות.";
+    MailApp.sendEmail({
+      to: NOTIFY_EMAIL,
+      subject: "🕊️ בקשת לו\"ז חדשה: " + row.scheduleName,
+      body: body
+    });
+  } catch (err) {
+    // לא עוצרים את יצירת הבקשה גם אם שליחת המייל נכשלה
+  }
 }
 
 function readAll_() {
