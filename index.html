@@ -1059,10 +1059,13 @@ window.addEventListener("hashchange", () =>
 /* ============================================================
    גובה גלים — Open-Meteo Marine (חינמי, ללא מפתח)
    ============================================================ */
+/* לכל אזור מספר נקודות חלופיות — מנסים לפי הסדר עד שמתקבלים נתונים.
+   קריטי במיוחד לאילת: מפרץ אילת צר ותאי הרשת של מודל הגלים
+   עלולים להיחשב "יבשה" — לכן יורדים דרומה לתוך המפרץ עד שיש תא ים. */
 const WAVE_SPOTS = [
-  { name: "חיפה · צפון", lat: 32.86, lon: 34.95 },
-  { name: "אשדוד · דרום", lat: 31.82, lon: 34.60 },
-  { name: "אילת · ים אדום", lat: 29.50, lon: 34.92 }
+  { name: "חיפה · צפון",   points: [[32.86, 34.95], [32.83, 34.88], [32.90, 34.85]] },
+  { name: "אשדוד · דרום",  points: [[31.82, 34.60], [31.80, 34.55], [31.85, 34.50]] },
+  { name: "אילת · ים אדום", points: [[29.50, 34.92], [29.42, 34.90], [29.25, 34.85], [29.00, 34.75], [28.70, 34.65], [28.40, 34.55]] }
 ];
 let wavesInited = false;
 function initWaves() {
@@ -1079,25 +1082,38 @@ function initWaves() {
 }
 function isoDate(d) { return d.toISOString().slice(0, 10); }
 
+async function fetchSpotData(spot, date) {
+  // מנסה כל נקודה חלופית עד שמתקבלים נתוני גלים תקינים
+  for (const [lat, lon] of spot.points) {
+    try {
+      const url = "https://marine-api.open-meteo.com/v1/marine" +
+        "?latitude=" + lat + "&longitude=" + lon +
+        "&hourly=wave_height&start_date=" + date + "&end_date=" + date +
+        "&cell_selection=sea&timezone=Asia%2FJerusalem";
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const data = await res.json();
+      const heights = (data.hourly && data.hourly.wave_height) || [];
+      if (heights.some(v => v != null)) return data;
+    } catch (e) { /* ננסה את הנקודה הבאה */ }
+  }
+  return null;
+}
+
 async function loadWaves() {
   const date = document.getElementById("waveDate").value;
   const box = document.getElementById("waveResults");
   box.innerHTML = '<div class="empty"><span class="spinner" style="border-top-color:var(--gold)"></span> טוען תחזית ימית...</div>';
-  try {
-    const cards = await Promise.all(WAVE_SPOTS.map(async (spot) => {
-      const url = "https://marine-api.open-meteo.com/v1/marine" +
-        "?latitude=" + spot.lat + "&longitude=" + spot.lon +
-        "&hourly=wave_height&start_date=" + date + "&end_date=" + date +
-        "&timezone=Asia%2FJerusalem";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("שירות התחזית לא זמין כרגע");
-      const data = await res.json();
-      return renderSpot(spot, data);
-    }));
-    box.innerHTML = cards.join("");
-  } catch (err) {
-    box.innerHTML = '<div class="empty">טעינת התחזית נכשלה: ' + escapeHtml(err.message) + '<br>בדוק/י חיבור לאינטרנט ונסה/י שוב.</div>';
-  }
+  // כל אזור עצמאי — כשל באזור אחד לא מפיל את השאר
+  const cards = await Promise.all(WAVE_SPOTS.map(async (spot) => {
+    const data = await fetchSpotData(spot, date);
+    if (!data) {
+      return '<div class="spot-card"><div class="spot-head"><span class="spot-name">' +
+        escapeHtml(spot.name) + '</span></div><div class="empty">אין נתוני גלים זמינים לאזור זה כרגע.</div></div>';
+    }
+    return renderSpot(spot, data);
+  }));
+  box.innerHTML = cards.join("");
 }
 
 function waveLevel(h) {
