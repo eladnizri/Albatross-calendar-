@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>אלבטרוס · ניהול בקשות לו"ז</title>
+  <style>
+    /* ============================================================
+       Albatross — Event Request Management
+       עיצוב: אווירת יחידה · כהה · זהב/ענבר · RTL
+       ============================================================ */
+
+    :root {
+      --bg-0: #0a0e14;
+      --bg-1: #0f1521;
+      --bg-2: #16202e;
+      --panel: rgba(20, 29, 43, 0.72);
+      --panel-solid: #141d2b;
+      --line: rgba(201, 162, 39, 0.18);
+      --line-soft: rgba(255, 255, 255, 0.07);
+      --gold: #c9a227;
+      --gold-2: #e6c15a;
+      --gold-soft: rgba(201, 162, 39, 0.12);
+      --text: #e8ecf3;
+      --text-dim: #9aa7ba;
+      --text-faint: #64748b;
+      --danger: #d9534f;
+      --danger-soft: rgba(217, 83, 79, 0.14);
+      --ok: #4caf7d;
+      --ok-soft: rgba(76, 175, 125, 0.14);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
+      --font: "Heebo", "Assistant", "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { min-height: 100%; }
+
+    body {
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 80% -10%, rgba(201, 162, 39, 0.10), transparent 60%),
+        radial-gradient(900px 600px at 10% 110%, rgba(46, 74, 120, 0.20), transparent 55%),
+        linear-gradient(160deg, var(--bg-0), var(--bg-1) 55%, var(--bg-2));
+      background-attachment: fixed;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      padding: 0 0 64px;
+    }
+
+    a { color: inherit; }
+
+    /* ---------- Header / Emblem ---------- */
+    header.masthead {
+      text-align: center;
+      padding: 40px 20px 26px;
+      position: relative;
+    }
+
+    .emblem {
+      width: 92px; height: 92px;
+      margin: 0 auto 14px;
+      display: block;
+      filter: drop-shadow(0 6px 18px rgba(201, 162, 39, 0.35));
+    }
+
+    .wordmark {
+      font-size: clamp(28px, 6vw, 44px);
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      background: linear-gradient(180deg, var(--gold-2), var(--gold));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      direction: ltr;
+    }
+
+    .tagline {
+      margin-top: 6px;
+      color: var(--text-dim);
+      font-size: 14px;
+      letter-spacing: 0.22em;
+      font-weight: 500;
+    }
+
+    .rule {
+      width: 220px; max-width: 60%;
+      height: 1px;
+      margin: 20px auto 0;
+      background: linear-gradient(90deg, transparent, var(--gold), transparent);
+      opacity: 0.6;
+    }
+
+    /* ---------- Layout ---------- */
+    .wrap { max-width: 720px; margin: 0 auto; padding: 0 18px; }
+
+    /* ---------- Tabs ---------- */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      padding: 6px;
+      max-width: 380px;
+      margin: 8px auto 30px;
+      backdrop-filter: blur(8px);
+    }
+    .tab {
+      flex: 1;
+      border: 0;
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 11px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .tab.active {
+      background: linear-gradient(180deg, var(--gold-2), var(--gold));
+      color: #1a1204;
+      box-shadow: 0 6px 16px -6px rgba(201, 162, 39, 0.6);
+    }
+
+    /* ---------- Card / Panel ---------- */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 22px 24px 16px;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .panel-head h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .panel-head p {
+      margin-top: 5px;
+      color: var(--text-dim);
+      font-size: 13.5px;
+    }
+
+    .panel-body { padding: 22px 24px 26px; }
+
+    /* ---------- Form ---------- */
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 7px;
+      letter-spacing: 0.01em;
+    }
+    .field .req { color: var(--gold); margin-inline-start: 3px; }
+
+    .control {
+      width: 100%;
+      background: rgba(10, 14, 20, 0.6);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+      padding: 12px 14px;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .control::placeholder { color: var(--text-faint); }
+    .control:focus {
+      outline: none;
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px var(--gold-soft);
+    }
+    select.control { appearance: none; cursor: pointer;
+      background-image: linear-gradient(45deg, transparent 50%, var(--gold) 50%), linear-gradient(135deg, var(--gold) 50%, transparent 50%);
+      background-position: left 16px center, left 11px center;
+      background-size: 5px 5px, 5px 5px;
+      background-repeat: no-repeat;
+    }
+    /* time/date inputs invert the picker icon for dark bg */
+    input[type="date"].control, input[type="time"].control { color-scheme: dark; }
+
+    .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .btn {
+      width: 100%;
+      border: 0;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 16px;
+      font-weight: 700;
+      padding: 14px;
+      cursor: pointer;
+      transition: transform 0.12s ease, box-shadow 0.2s ease, opacity 0.2s;
+      letter-spacing: 0.02em;
+    }
+    .btn-gold {
+      background: linear-gradient(180deg, var(--gold-2), var(--gold));
+      color: #1a1204;
+      box-shadow: 0 10px 24px -10px rgba(201, 162, 39, 0.7);
+    }
+    .btn-gold:hover { transform: translateY(-1px); }
+    .btn-gold:active { transform: translateY(0); }
+    .btn:disabled { opacity: 0.55; cursor: default; transform: none; }
+
+    /* ---------- Toast / status ---------- */
+    .notice {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 500;
+      display: none;
+    }
+    .notice.show { display: block; }
+    .notice.ok { background: var(--ok-soft); color: #8fe0b6; border: 1px solid rgba(76,175,125,0.3); }
+    .notice.err { background: var(--danger-soft); color: #f0a6a4; border: 1px solid rgba(217,83,79,0.3); }
+    .notice.info { background: var(--gold-soft); color: var(--gold-2); border: 1px solid var(--line); }
+
+    /* ---------- Admin ---------- */
+    .lock-wrap { text-align: center; padding: 10px 4px 6px; }
+    .lock-icon { font-size: 34px; margin-bottom: 10px; opacity: 0.85; }
+
+    .admin-toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+    .chip {
+      border: 1px solid var(--line-soft);
+      background: rgba(10,14,20,0.5);
+      color: var(--text-dim);
+      border-radius: 999px;
+      padding: 7px 14px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip.active { border-color: var(--gold); color: var(--gold-2); background: var(--gold-soft); }
+
+    .ghost-btn {
+      border: 1px solid var(--line-soft);
+      background: transparent;
+      color: var(--text-dim);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+    .ghost-btn:hover { color: var(--text); border-color: var(--line); }
+
+    .req-list { display: flex; flex-direction: column; gap: 14px; }
+
+    .req-card {
+      background: linear-gradient(180deg, rgba(22,32,46,0.9), rgba(16,21,33,0.9));
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .req-card::before {
+      content: ""; position: absolute; inset-block: 0; inset-inline-start: 0;
+      width: 4px; background: var(--gold);
+    }
+    .req-card[data-status="approved"]::before { background: var(--ok); }
+    .req-card[data-status="rejected"]::before { background: var(--danger); }
+
+    .req-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .req-title { font-size: 17px; font-weight: 700; }
+    .req-sub { font-size: 13px; color: var(--text-dim); margin-top: 2px; }
+
+    .badge {
+      font-size: 11.5px; font-weight: 700; letter-spacing: 0.03em;
+      padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+      border: 1px solid var(--line-soft);
+    }
+    .badge.type { color: var(--gold-2); background: var(--gold-soft); border-color: var(--line); }
+    .badge.st-pending  { color: var(--gold-2); background: var(--gold-soft); }
+    .badge.st-approved { color: #8fe0b6; background: var(--ok-soft); }
+    .badge.st-rejected { color: #f0a6a4; background: var(--danger-soft); }
+
+    .req-meta {
+      display: flex; flex-wrap: wrap; gap: 8px 18px;
+      margin: 12px 0 4px;
+      font-size: 13.5px; color: var(--text-dim);
+    }
+    .req-meta b { color: var(--text); font-weight: 600; }
+
+    .req-actions { display: flex; gap: 10px; margin-top: 14px; }
+    .req-actions .btn { width: auto; flex: 1; padding: 11px; font-size: 14.5px; }
+    .btn-ok  { background: var(--ok-soft); color: #a6ecc6; border: 1px solid rgba(76,175,125,0.35); }
+    .btn-no  { background: var(--danger-soft); color: #f0a6a4; border: 1px solid rgba(217,83,79,0.35); }
+    .btn-ok:hover, .btn-no:hover { filter: brightness(1.15); }
+
+    .empty {
+      text-align: center; color: var(--text-faint);
+      padding: 40px 20px; font-size: 14.5px;
+    }
+
+    .config-warn {
+      display: none;
+      margin: 0 auto 22px; max-width: 720px;
+      background: var(--danger-soft); border: 1px solid rgba(217,83,79,0.35);
+      color: #f0a6a4; border-radius: var(--radius-sm);
+      padding: 12px 16px; font-size: 13.5px; text-align: center;
+    }
+
+    .spinner {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.25); border-top-color: #1a1204;
+      display: inline-block; vertical-align: -3px; margin-inline-end: 8px;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    footer.foot {
+      text-align: center; color: var(--text-faint);
+      font-size: 12px; margin-top: 34px; letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 480px) {
+      .row-2 { grid-template-columns: 1fr; }
+      .panel-body { padding: 18px 16px 22px; }
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <header class="masthead">
+    <!-- Albatross wings emblem -->
+    <svg class="emblem" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#e6c15a"/>
+          <stop offset="1" stop-color="#c9a227"/>
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="56" stroke="url(#g)" stroke-width="2" opacity="0.55"/>
+      <!-- wings -->
+      <path d="M60 58 C40 40 22 38 8 46 C26 46 40 52 52 64 C40 60 28 62 20 70 C34 66 48 68 58 76 L60 72 Z" fill="url(#g)"/>
+      <path d="M60 58 C80 40 98 38 112 46 C94 46 80 52 68 64 C80 60 92 62 100 70 C86 66 72 68 62 76 L60 72 Z" fill="url(#g)"/>
+      <!-- body -->
+      <path d="M60 48 L64 70 L60 86 L56 70 Z" fill="url(#g)"/>
+      <circle cx="60" cy="46" r="4.5" fill="url(#g)"/>
+    </svg>
+    <div class="wordmark">ALBATROSS</div>
+    <div class="tagline">יחידת אלבטרוס · ניהול בקשות לו"ז</div>
+    <div class="rule"></div>
+  </header>
+
+  <div class="config-warn" id="configWarn">
+    ⚠️ כתובת ה-Backend לא הוגדרה עדיין. עדכן את <b>API_URL</b> בתחילת קוד ה-JS (ראה README).
+    כרגע הבקשות נשמרות מקומית בדפדפן בלבד.
+  </div>
+
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" id="tabForm" onclick="switchView('form')">הגשת בקשה</button>
+      <button class="tab" id="tabAdmin" onclick="switchView('admin')">מסך בקרה</button>
+    </div>
+
+    <!-- ============ FORM VIEW ============ -->
+    <section id="viewForm">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>הגשת בקשת לו"ז</h2>
+          <p>מלא/י את הפרטים והבקשה תישלח לאישור מפקד היחידה.</p>
+        </div>
+        <div class="panel-body">
+          <form id="requestForm" autocomplete="off">
+            <div class="field">
+              <label for="requesterName">שם מבקש הלו"ז <span class="req">*</span></label>
+              <input class="control" id="requesterName" type="text" placeholder="שם מלא" required />
+            </div>
+
+            <div class="field">
+              <label for="scheduleName">שם הלו"ז <span class="req">*</span></label>
+              <input class="control" id="scheduleName" type="text" placeholder="לדוגמה: תדריך בוקר" required />
+            </div>
+
+            <div class="field">
+              <label for="date">תאריך <span class="req">*</span></label>
+              <input class="control" id="date" type="date" required />
+            </div>
+
+            <div class="row-2">
+              <div class="field">
+                <label for="startTime">שעת התחלה <span class="req">*</span></label>
+                <input class="control" id="startTime" type="time" required />
+              </div>
+              <div class="field">
+                <label for="endTime">שעת סיום <span class="req">*</span></label>
+                <input class="control" id="endTime" type="time" required />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="type">סוג הלו"ז <span class="req">*</span></label>
+              <select class="control" id="type" required>
+                <option value="" disabled selected>בחר/י סוג</option>
+                <option value="אישי">אישי</option>
+                <option value="מד&quot;ס">מד"ס</option>
+                <option value="מפקד">מפקד</option>
+                <option value="חופש">חופש</option>
+                <option value="אפטר">אפטר</option>
+              </select>
+            </div>
+
+            <button class="btn btn-gold" type="submit" id="submitBtn">שלח בקשה</button>
+            <div class="notice" id="formNotice"></div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN VIEW ============ -->
+    <section id="viewAdmin" class="hidden">
+      <!-- login -->
+      <div class="panel" id="adminLogin">
+        <div class="panel-head">
+          <h2>מסך בקרה — כניסת מפקד</h2>
+          <p>הזן/י את סיסמת הניהול כדי לצפות בבקשות ולנהל אותן.</p>
+        </div>
+        <div class="panel-body">
+          <div class="lock-wrap"><div class="lock-icon">🔒</div></div>
+          <form id="loginForm">
+            <div class="field">
+              <label for="adminPass">סיסמת ניהול</label>
+              <input class="control" id="adminPass" type="password" placeholder="••••••••" />
+            </div>
+            <button class="btn btn-gold" type="submit">כניסה</button>
+            <div class="notice" id="loginNotice"></div>
+          </form>
+        </div>
+      </div>
+
+      <!-- dashboard -->
+      <div id="adminDash" class="hidden">
+        <div class="admin-toolbar">
+          <div class="filters" id="filters">
+            <button class="chip active" data-filter="all">הכל</button>
+            <button class="chip" data-filter="pending">ממתין</button>
+            <button class="chip" data-filter="approved">אושר</button>
+            <button class="chip" data-filter="rejected">נדחה</button>
+          </div>
+          <button class="ghost-btn" id="refreshBtn" onclick="loadRequests()">↻ רענן</button>
+        </div>
+        <div class="req-list" id="reqList"></div>
+      </div>
+    </section>
+  </div>
+
+  <footer class="foot">ALBATROSS UNIT · SCHEDULE OPS</footer>
+
+<script>
+/* ============================================================
+   CONFIG — עדכן כאן לפני שימוש אמיתי
+   ============================================================ */
+const CONFIG = {
+  // הדבק כאן את כתובת ה-Web App מ-Google Apps Script (מסתיים ב-/exec).
+  // אם נשאר ריק — האפליקציה עובדת במצב הדגמה מקומי (localStorage).
+  API_URL: "",
+
+  // סיסמת הניהול. שנה/י אותה! (חייבת להיות זהה לזו שב-Code.gs)
+  ADMIN_PASSWORD: "albatross",
+
+  // שם היומן ותיאור ברירת מחדל שיופיעו בקישור "הוסף ליומן"
+  CALENDAR_TITLE_PREFIX: "לו\"ז אלבטרוס"
+};
+
+/* ============================================================
+   State
+   ============================================================ */
+let REQUESTS = [];
+let currentFilter = "all";
+const USING_BACKEND = !!CONFIG.API_URL && CONFIG.API_URL.startsWith("http");
+const LS_KEY = "albatross_requests";
+
+/* ============================================================
+   View switching
+   ============================================================ */
+function switchView(view) {
+  const isForm = view === "form";
+  document.getElementById("viewForm").classList.toggle("hidden", !isForm);
+  document.getElementById("viewAdmin").classList.toggle("hidden", isForm);
+  document.getElementById("tabForm").classList.toggle("active", isForm);
+  document.getElementById("tabAdmin").classList.toggle("active", !isForm);
+}
+
+/* ============================================================
+   Notices
+   ============================================================ */
+function showNotice(id, type, msg) {
+  const el = document.getElementById(id);
+  el.className = "notice show " + type;
+  el.innerHTML = msg;
+}
+function hideNotice(id) {
+  document.getElementById(id).className = "notice";
+}
+
+/* ============================================================
+   Backend helpers (Google Apps Script)
+   POST גוף כ-JSON כמחרוזת (text/plain) — נמנע מ-CORS preflight.
+   ============================================================ */
+async function apiPost(payload) {
+  const res = await fetch(CONFIG.API_URL, {
+    method: "POST",
+    redirect: "follow",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "שגיאת שרת");
+  return data;
+}
+async function apiGet(params) {
+  const url = CONFIG.API_URL + "?" + new URLSearchParams(params).toString();
+  const res = await fetch(url, { method: "GET", redirect: "follow" });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || "שגיאת שרת");
+  return data;
+}
+
+/* localStorage fallback (מצב הדגמה) */
+function lsLoad() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY)) || []; }
+  catch { return []; }
+}
+function lsSave(arr) { localStorage.setItem(LS_KEY, JSON.stringify(arr)); }
+
+/* ============================================================
+   Submit request
+   ============================================================ */
+document.getElementById("requestForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+  hideNotice("formNotice");
+
+  const payload = {
+    action: "create",
+    requesterName: val("requesterName"),
+    scheduleName: val("scheduleName"),
+    date: val("date"),
+    startTime: val("startTime"),
+    endTime: val("endTime"),
+    type: val("type")
+  };
+
+  if (payload.endTime <= payload.startTime) {
+    showNotice("formNotice", "err", "שעת הסיום חייבת להיות אחרי שעת ההתחלה.");
+    return;
+  }
+
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>שולח...';
+
+  try {
+    if (USING_BACKEND) {
+      await apiPost(payload);
+    } else {
+      const arr = lsLoad();
+      arr.unshift({
+        id: "loc_" + Date.now(),
+        ...payload,
+        status: "pending",
+        createdAt: new Date().toISOString()
+      });
+      lsSave(arr);
+    }
+    this.reset();
+    showNotice("formNotice", "ok", "✔ הבקשה נשלחה בהצלחה והועברה לאישור המפקד.");
+  } catch (err) {
+    showNotice("formNotice", "err", "שליחת הבקשה נכשלה: " + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "שלח בקשה";
+  }
+});
+
+function val(id) { return document.getElementById(id).value.trim(); }
+
+/* ============================================================
+   Admin login
+   ============================================================ */
+document.getElementById("loginForm").addEventListener("submit", function (e) {
+  e.preventDefault();
+  const pass = document.getElementById("adminPass").value;
+  if (pass === CONFIG.ADMIN_PASSWORD) {
+    sessionStorage.setItem("albatross_admin", "1");
+    enterDashboard();
+  } else {
+    showNotice("loginNotice", "err", "סיסמה שגויה.");
+  }
+});
+
+function enterDashboard() {
+  document.getElementById("adminLogin").classList.add("hidden");
+  document.getElementById("adminDash").classList.remove("hidden");
+  loadRequests();
+}
+
+/* filter chips */
+document.getElementById("filters").addEventListener("click", function (e) {
+  if (!e.target.classList.contains("chip")) return;
+  currentFilter = e.target.dataset.filter;
+  [...this.children].forEach(c => c.classList.toggle("active", c === e.target));
+  renderRequests();
+});
+
+/* ============================================================
+   Load + render requests
+   ============================================================ */
+async function loadRequests() {
+  const list = document.getElementById("reqList");
+  list.innerHTML = '<div class="empty"><span class="spinner" style="border-top-color:var(--gold)"></span> טוען בקשות...</div>';
+  try {
+    if (USING_BACKEND) {
+      const data = await apiGet({ action: "list", token: CONFIG.ADMIN_PASSWORD });
+      REQUESTS = data.requests || [];
+    } else {
+      REQUESTS = lsLoad();
+    }
+    renderRequests();
+  } catch (err) {
+    list.innerHTML = '<div class="empty">טעינת הבקשות נכשלה: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+function renderRequests() {
+  const list = document.getElementById("reqList");
+  const filtered = REQUESTS.filter(r =>
+    currentFilter === "all" ? true : (r.status || "pending") === currentFilter
+  );
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="empty">אין בקשות להצגה בקטגוריה זו.</div>';
+    return;
+  }
+
+  const statusLabel = { pending: "ממתין", approved: "אושר", rejected: "נדחה" };
+  list.innerHTML = filtered.map(r => {
+    const status = r.status || "pending";
+    return `
+      <div class="req-card" data-status="${status}">
+        <div class="req-top">
+          <div>
+            <div class="req-title">${escapeHtml(r.scheduleName)}</div>
+            <div class="req-sub">מבקש: ${escapeHtml(r.requesterName)}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+            <span class="badge st-${status}">${statusLabel[status]}</span>
+            <span class="badge type">${escapeHtml(r.type)}</span>
+          </div>
+        </div>
+        <div class="req-meta">
+          <span>📅 <b>${escapeHtml(formatDate(r.date))}</b></span>
+          <span>⏱️ <b>${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}</b></span>
+        </div>
+        ${status === "pending" ? `
+          <div class="req-actions">
+            <button class="btn btn-ok" onclick="approve('${r.id}')">אשר והוסף ליומן</button>
+            <button class="btn btn-no" onclick="reject('${r.id}')">דחה</button>
+          </div>` : `
+          <div class="req-actions">
+            <a class="btn btn-ok" style="text-decoration:none;text-align:center" href="${buildCalendarLink(r)}" target="_blank" rel="noopener">פתח ביומן</a>
+          </div>`}
+      </div>`;
+  }).join("");
+}
+
+/* ============================================================
+   Approve / Reject
+   ============================================================ */
+async function approve(id) {
+  const req = REQUESTS.find(r => r.id === id);
+  if (!req) return;
+  // פתח את הקישור להוספה ליומן מיד (מונע חסימת פופ-אפ)
+  window.open(buildCalendarLink(req), "_blank", "noopener");
+  await updateStatus(id, "approved");
+}
+async function reject(id) {
+  await updateStatus(id, "rejected");
+}
+
+async function updateStatus(id, status) {
+  try {
+    if (USING_BACKEND) {
+      await apiPost({ action: "updateStatus", id, status, token: CONFIG.ADMIN_PASSWORD });
+    } else {
+      const arr = lsLoad();
+      const item = arr.find(r => r.id === id);
+      if (item) item.status = status;
+      lsSave(arr);
+    }
+    const local = REQUESTS.find(r => r.id === id);
+    if (local) local.status = status;
+    renderRequests();
+  } catch (err) {
+    alert("עדכון הסטטוס נכשל: " + err.message);
+  }
+}
+
+/* ============================================================
+   Google Calendar "add to calendar" link
+   ============================================================ */
+function buildCalendarLink(r) {
+  const start = toGCalDate(r.date, r.startTime);
+  const end = toGCalDate(r.date, r.endTime);
+  const title = `${CONFIG.CALENDAR_TITLE_PREFIX}: ${r.scheduleName}`;
+  const details = `סוג: ${r.type}\nמבקש: ${r.requesterName}`;
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    dates: `${start}/${end}`,
+    details: details
+  });
+  return "https://calendar.google.com/calendar/render?" + params.toString();
+}
+
+// "2026-07-27" + "09:30" -> "20260727T093000" (זמן מקומי / floating)
+function toGCalDate(date, time) {
+  const d = date.replace(/-/g, "");
+  const t = (time || "00:00").replace(":", "") + "00";
+  return d + "T" + t;
+}
+
+/* ============================================================
+   Utils
+   ============================================================ */
+function formatDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  return `${d}/${m}/${y}`;
+}
+function escapeHtml(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+}
+
+/* ============================================================
+   Init
+   ============================================================ */
+(function init() {
+  if (!USING_BACKEND) {
+    document.getElementById("configWarn").style.display = "block";
+  }
+  // default date = today
+  document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+  // keep admin logged-in within the session
+  if (sessionStorage.getItem("albatross_admin") === "1") {
+    // מציג את הלוח רק אם המשתמש עובר ללשונית הניהול
+    document.getElementById("adminLogin").classList.add("hidden");
+    document.getElementById("adminDash").classList.remove("hidden");
+    loadRequests();
+  }
+})();
+</script>
+</body>
+</html>
