@@ -25,9 +25,10 @@ const ADMIN_TOKEN = "albatross";
 const SPREADSHEET_ID = "";
 
 const SHEET_NAME = "Requests";
+// "notes" נוסף בסוף כדי לא לשבש נתונים קיימים בגיליון
 const HEADERS = [
   "id", "createdAt", "requesterName", "scheduleName",
-  "date", "startTime", "endTime", "type", "status"
+  "date", "startTime", "endTime", "type", "status", "notes"
 ];
 
 /* ---------- Sheet helpers ---------- */
@@ -41,8 +42,18 @@ function getSheet_() {
     sh = ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
+    return sh;
   }
-  if (sh.getLastRow() === 0) sh.appendRow(HEADERS);
+  if (sh.getLastRow() === 0) {
+    sh.appendRow(HEADERS);
+    return sh;
+  }
+  // סנכרון שורת הכותרות — מוסיף עמודות חדשות (כמו notes) לגיליון קיים
+  const width = sh.getLastColumn();
+  const current = sh.getRange(1, 1, 1, Math.max(width, HEADERS.length)).getValues()[0];
+  if (current.slice(0, HEADERS.length).join("|") !== HEADERS.join("|")) {
+    sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+  }
   return sh;
 }
 
@@ -86,8 +97,8 @@ function doPost(e) {
 
 /* ---------- Core logic ---------- */
 function createRequest_(body) {
-  // ולידציה בסיסית
-  const required = ["requesterName", "scheduleName", "date", "startTime", "endTime", "type"];
+  // ולידציה בסיסית — "type" ו-"notes" אינם חובה
+  const required = ["requesterName", "scheduleName", "date", "startTime", "endTime"];
   for (const f of required) {
     if (!body[f]) return { ok: false, error: "שדה חסר: " + f };
   }
@@ -101,8 +112,9 @@ function createRequest_(body) {
     date: body.date,
     startTime: body.startTime,
     endTime: body.endTime,
-    type: body.type,
-    status: "pending"
+    type: body.type || "",
+    status: "pending",
+    notes: body.notes || ""
   };
   sh.appendRow(HEADERS.map(h => row[h]));
   return { ok: true, id: id };

@@ -4,6 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>אלבטרוס · ניהול בקשות לו"ז</title>
+
+  <!-- אייקון להוספה למסך הבית (Add to Home Screen) -->
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <meta name="theme-color" content="#0a1633" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="אלבטרוס" />
   <style>
     /* ============================================================
        Albatross — Event Request Management
@@ -200,6 +210,7 @@
     }
     /* time/date inputs invert the picker icon for dark bg */
     input[type="date"].control, input[type="time"].control { color-scheme: dark; }
+    textarea.control { resize: vertical; min-height: 72px; line-height: 1.55; }
 
     .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 
@@ -313,6 +324,18 @@
     }
     .req-meta b { color: var(--text); font-weight: 600; }
 
+    .req-notes {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: rgba(10, 22, 51, 0.55);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      font-size: 13.5px;
+      color: var(--text-dim);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
     .req-actions { display: flex; gap: 10px; margin-top: 14px; }
     .req-actions .btn { width: auto; flex: 1; padding: 11px; font-size: 14.5px; }
     .btn-ok  { background: var(--ok-soft); color: #a6ecc6; border: 1px solid rgba(76,175,125,0.35); }
@@ -410,15 +433,20 @@
             </div>
 
             <div class="field">
-              <label for="type">סוג הלו"ז <span class="req">*</span></label>
-              <select class="control" id="type" required>
-                <option value="" disabled selected>בחר/י סוג</option>
+              <label for="type">סוג הלו"ז <span style="color:var(--text-faint);font-weight:400">(לא חובה)</span></label>
+              <select class="control" id="type">
+                <option value="" selected>ללא / לא רלוונטי</option>
                 <option value="אישי">אישי</option>
                 <option value="מד&quot;ס">מד"ס</option>
                 <option value="מפקד">מפקד</option>
                 <option value="חופש">חופש</option>
                 <option value="אפטר">אפטר</option>
               </select>
+            </div>
+
+            <div class="field">
+              <label for="notes">הערות <span style="color:var(--text-faint);font-weight:400">(לא חובה)</span></label>
+              <textarea class="control" id="notes" rows="3" placeholder="פרטים נוספים, אם יש..."></textarea>
             </div>
 
             <button class="btn btn-gold" type="submit" id="submitBtn">שלח בקשה</button>
@@ -558,7 +586,8 @@ document.getElementById("requestForm").addEventListener("submit", async function
     date: val("date"),
     startTime: val("startTime"),
     endTime: val("endTime"),
-    type: val("type")
+    type: val("type"),
+    notes: val("notes")
   };
 
   if (payload.endTime <= payload.startTime) {
@@ -665,13 +694,14 @@ function renderRequests() {
           </div>
           <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
             <span class="badge st-${status}">${statusLabel[status]}</span>
-            <span class="badge type">${escapeHtml(r.type)}</span>
+            ${r.type ? `<span class="badge type">${escapeHtml(r.type)}</span>` : ``}
           </div>
         </div>
         <div class="req-meta">
           <span>📅 <b>${escapeHtml(formatDate(r.date))}</b></span>
           <span>⏱️ <b>${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}</b></span>
         </div>
+        ${r.notes ? `<div class="req-notes">📝 ${escapeHtml(r.notes)}</div>` : ``}
         ${status === "pending" ? `
           <div class="req-actions">
             <button class="btn btn-ok" onclick="approve('${r.id}')">אשר והוסף ליומן</button>
@@ -722,8 +752,11 @@ async function updateStatus(id, status) {
 function buildCalendarLink(r) {
   const start = toGCalDate(r.date, r.startTime);
   const end = toGCalDate(r.date, r.endTime);
-  const title = `${CONFIG.CALENDAR_TITLE_PREFIX}: ${r.scheduleName}`;
-  const details = `סוג: ${r.type}\nמבקש: ${r.requesterName}`;
+  // כותרת האירוע = שם הלו"ז בלבד (ללא הקידומת "לו\"ז אלבטרוס:")
+  const title = r.scheduleName;
+  let details = `מבקש: ${r.requesterName}`;
+  if (r.type) details += `\nסוג: ${r.type}`;
+  if (r.notes) details += `\nהערות: ${r.notes}`;
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: title,
