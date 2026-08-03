@@ -23,10 +23,6 @@ const ADMIN_TOKEN = "albatross";
 // כתובת המייל שתקבל התראה על כל בקשה חדשה (רק אתה). השאר ריק כדי לכבות.
 const NOTIFY_EMAIL = "eladn2006@gmail.com";
 
-// שם היומן שממנו נמשך הלו"ז השבועי במסך "צפייה ביומן".
-// חייב להיות זהה לשם היומן ב-Google Calendar, ומשותף/בבעלות החשבון שמריץ סקריפט זה.
-const CALENDAR_NAME = "יחידת אלבטרוס";
-
 // אם הסקריפט משויך לגליון (Container-bound) השאר ריק.
 // אחרת הדבק כאן את מזהה ה-Spreadsheet (מתוך כתובת ה-URL שלו).
 const SPREADSHEET_ID = "";
@@ -66,10 +62,6 @@ function doGet(e) {
     if (p.action === "list") {
       if (p.token !== ADMIN_TOKEN) return json_({ ok: false, error: "אין הרשאה" });
       return json_({ ok: true, requests: readAll_() });
-    }
-    if (p.action === "weekEvents") {
-      // צפייה בלבד בלו"ז השבועי — פתוח לכל חברי היחידה (ללא טוקן)
-      return json_(weekEvents_());
     }
     return json_({ ok: true, message: "Albatross backend פעיל" });
   } catch (err) {
@@ -141,64 +133,6 @@ function notifyAdmin_(row) {
   } catch (err) {
     // לא עוצרים את יצירת הבקשה גם אם שליחת המייל נכשלה
   }
-}
-
-/* ---------- צפייה ביומן: אירועי השבוע הנוכחי ---------- */
-function weekEvents_() {
-  const cals = CalendarApp.getCalendarsByName(CALENDAR_NAME);
-  if (!cals || !cals.length) {
-    return { ok: false, error: 'לא נמצא יומן בשם "' + CALENDAR_NAME + '". ודא שהוא משותף עם החשבון שמריץ את הסקריפט.' };
-  }
-  const cal = cals[0];
-  const tz = Session.getScriptTimeZone();
-
-  // תחילת השבוע = יום ראשון האחרון בשעה 00:00 · סוף = יום ראשון הבא (טווח חצי-פתוח)
-  const weekStart = new Date();
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // getDay(): 0 = ראשון
-  const weekEnd = new Date(weekStart);
-  weekEnd.setDate(weekEnd.getDate() + 7);
-
-  const events = cal.getEvents(weekStart, weekEnd).map(function (ev) {
-    const allDay = ev.isAllDayEvent();
-    const s = ev.getStartTime();
-    const e = ev.getEndTime();
-    return {
-      title: ev.getTitle(),
-      allDay: allDay,
-      startLabel: allDay ? "" : Utilities.formatDate(s, tz, "HH:mm"),
-      endLabel:   allDay ? "" : Utilities.formatDate(e, tz, "HH:mm"),
-      location: ev.getLocation() || "",
-      // הימים (yyyy-MM-dd) שהאירוע משתרע עליהם בתוך השבוע — כדי לשבץ אותו בכל יום רלוונטי
-      days: eventDays_(ev, weekStart, weekEnd, tz)
-    };
-  });
-
-  return {
-    ok: true,
-    calendarName: CALENDAR_NAME,
-    weekStart: Utilities.formatDate(weekStart, tz, "yyyy-MM-dd"),
-    events: events
-  };
-}
-
-// מחזיר את רשימת התאריכים (yyyy-MM-dd) שאירוע נוגע בהם, מקוצץ לגבולות השבוע
-function eventDays_(ev, weekStart, weekEnd, tz) {
-  const allDay = ev.isAllDayEvent();
-  const s = ev.getStartTime();
-  const e = ev.getEndTime();
-  // באירוע "כל היום" זמן הסיום הוא חצות של היום שאחרי — לכן היום האחרון הוא סוף פחות מילישנייה
-  const lastMs = allDay ? e.getTime() - 1 : e.getTime();
-  let cur = new Date(Math.max(s.getTime(), weekStart.getTime()));
-  cur.setHours(0, 0, 0, 0);
-  const last = Math.min(lastMs, weekEnd.getTime() - 1);
-  const days = [];
-  let guard = 0;
-  while (cur.getTime() <= last && guard++ < 8) {
-    days.push(Utilities.formatDate(cur, tz, "yyyy-MM-dd"));
-    cur.setDate(cur.getDate() + 1);
-  }
-  return days;
 }
 
 function readAll_() {
