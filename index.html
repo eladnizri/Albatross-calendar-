@@ -449,6 +449,47 @@
     .wave-hours { display: flex; gap: 2px; margin-top: 4px; direction: ltr; }
     .wave-hours span { flex: 1; text-align: center; font-size: 9.5px; color: var(--text-faint); }
 
+    /* ---------- צפייה ביומן — לוח שבועי ---------- */
+    .cal-toolbar {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; margin-bottom: 16px;
+    }
+    .cal-range {
+      color: var(--gold-2); font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
+    }
+    .cal-week { display: flex; flex-direction: column; gap: 10px; }
+    .cal-day {
+      background: rgba(10, 14, 20, 0.4);
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .cal-day.cal-today { border-color: var(--gold); background: var(--gold-soft); }
+    .cal-day-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-bottom: 8px;
+    }
+    .cal-day-name { font-weight: 700; font-size: 15px; }
+    .cal-today .cal-day-name { color: var(--gold-2); }
+    .cal-day-date { color: var(--text-faint); font-size: 13px; direction: ltr; }
+    .cal-events { display: flex; flex-direction: column; gap: 7px; }
+    .cal-none { color: var(--text-faint); font-size: 13px; padding: 2px 0; }
+    .cal-event {
+      display: flex; flex-direction: column; gap: 2px;
+      background: var(--panel-solid);
+      border: 1px solid var(--line);
+      border-inline-start: 3px solid var(--gold);
+      border-radius: 8px;
+      padding: 8px 11px;
+    }
+    .cal-event-time {
+      color: var(--gold-2); font-size: 12.5px; font-weight: 600;
+      font-variant-numeric: tabular-nums; direction: ltr; text-align: start;
+    }
+    .cal-event-time.allday { color: var(--silver); }
+    .cal-event-title { font-size: 14.5px; font-weight: 600; }
+    .cal-event-loc { color: var(--text-dim); font-size: 12.5px; }
+
     /* ---------- בחירת גרון ---------- */
     .pool-note { font-size: 13px; color: var(--text-dim); margin: -4px 0 14px; }
     .pick-result { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -514,6 +555,11 @@
         <button class="nav-card" onclick="showScreen('schedule')">
           <span class="nav-icon">📅</span>
           <span class="nav-info"><b>קביעת לו"ז</b><small>הגשת בקשות ומסך בקרה למפקד</small></span>
+          <span class="nav-arrow">‹</span>
+        </button>
+        <button class="nav-card" onclick="showScreen('calendar')">
+          <span class="nav-icon">🗓️</span>
+          <span class="nav-info"><b>צפייה ביומן</b><small>הלו"ז השבועי של היחידה</small></span>
           <span class="nav-arrow">‹</span>
         </button>
         <button class="nav-card" onclick="showScreen('waves')">
@@ -710,6 +756,26 @@
             <button class="btn btn-gold" style="padding:12px 22px" onclick="addPerson()">הוסף</button>
           </div>
           <button class="ghost-btn" style="margin-top:14px" onclick="resetPeople()">↺ אפס לרשימת ברירת המחדל</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CALENDAR (צפייה ביומן) ============ -->
+  <section id="screenCalendar" class="hidden">
+    <div class="wrap">
+      <button class="back-btn" onclick="showScreen('home')">→ מסך ראשי</button>
+      <div class="panel">
+        <div class="panel-head">
+          <h2>🗓️ צפייה ביומן</h2>
+          <p>הלו"ז השבועי של היחידה — מתוך יומן "יחידת אלבטרוס".</p>
+        </div>
+        <div class="panel-body">
+          <div class="cal-toolbar">
+            <div class="cal-range" id="calRange"></div>
+            <button class="ghost-btn" onclick="initCalendarView()">↻ רענן</button>
+          </div>
+          <div class="cal-week" id="calWeek"></div>
         </div>
       </div>
     </div>
@@ -1032,6 +1098,7 @@ function escapeHtml(s) {
 const SCREENS = {
   home: "screenHome",
   schedule: "screenSchedule",
+  calendar: "screenCalendar",
   waves: "screenWaves",
   picker: "screenPicker"
 };
@@ -1050,6 +1117,7 @@ function renderScreen(name) {
   );
   if (name === "waves") initWaves();
   if (name === "picker") renderPicker();
+  if (name === "calendar") initCalendarView();
   window.scrollTo({ top: 0 });
 }
 window.addEventListener("hashchange", () =>
@@ -1150,6 +1218,110 @@ function renderSpot(spot, data) {
       '<div class="wave-max">גובה גלים מרבי: <b>' + max.toFixed(1) + ' מ\'</b></div>' +
       '<div class="wave-bars">' + bars + '</div>' +
       '<div class="wave-hours">' + hourLabels + '</div>' +
+    '</div>'
+  );
+}
+
+/* ============================================================
+   צפייה ביומן — לוח שבועי מ-Google Calendar (דרך ה-Backend)
+   ============================================================ */
+const CAL_DAY_NAMES = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+const CAL_MONTHS = ["ינואר", "פברואר", "מרץ", "אפריל", "מאי", "יוני",
+                    "יולי", "אוגוסט", "ספטמבר", "אוקטובר", "נובמבר", "דצמבר"];
+
+// תאריך מקומי כמחרוזת yyyy-MM-dd (בלי המרת UTC של toISOString שעלולה להזיז יום)
+function localISO(d) {
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return d.getFullYear() + "-" + m + "-" + day;
+}
+function parseISODate(s) {
+  const [y, m, d] = String(s).split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+async function initCalendarView() {
+  const box = document.getElementById("calWeek");
+  const title = document.getElementById("calRange");
+  if (!USING_BACKEND) {
+    title.textContent = "";
+    box.innerHTML = '<div class="empty">צפייה ביומן דורשת חיבור ל-Backend (Google Apps Script).</div>';
+    return;
+  }
+  title.textContent = "";
+  box.innerHTML = '<div class="empty"><span class="spinner"></span>טוען את היומן…</div>';
+  try {
+    const data = await apiGet({ action: "weekEvents" });
+    renderCalendarWeek(data);
+  } catch (err) {
+    box.innerHTML = '<div class="empty">טעינת היומן נכשלה: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+function renderCalendarWeek(data) {
+  const box = document.getElementById("calWeek");
+  const title = document.getElementById("calRange");
+  const weekStart = parseISODate(data.weekStart);
+
+  // שבעה ימים, ראשון → שבת
+  const days = [];
+  const byIso = {};
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    const day = { iso: localISO(d), date: d, events: [] };
+    days.push(day);
+    byIso[day.iso] = day;
+  }
+
+  // שיבוץ כל אירוע בכל יום שהוא נוגע בו
+  (data.events || []).forEach(ev => {
+    (ev.days || []).forEach(iso => {
+      if (byIso[iso]) byIso[iso].events.push(ev);
+    });
+  });
+
+  // מיון: אירוע יום-שלם קודם, אחר כך לפי שעת התחלה
+  days.forEach(d => d.events.sort((a, b) => {
+    if (a.allDay !== b.allDay) return a.allDay ? -1 : 1;
+    return (a.startLabel || "").localeCompare(b.startLabel || "");
+  }));
+
+  const first = days[0].date, last = days[6].date;
+  const range = last.getMonth() === first.getMonth()
+    ? first.getDate() + "–" + last.getDate() + " ב" + CAL_MONTHS[last.getMonth()]
+    : first.getDate() + " ב" + CAL_MONTHS[first.getMonth()] + " – " + last.getDate() + " ב" + CAL_MONTHS[last.getMonth()];
+  title.textContent = range;
+
+  const todayIso = localISO(new Date());
+  box.innerHTML = days.map(d => {
+    const isToday = d.iso === todayIso;
+    const evHtml = d.events.length
+      ? d.events.map(renderCalEvent).join("")
+      : '<div class="cal-none">אין אירועים</div>';
+    return (
+      '<div class="cal-day' + (isToday ? ' cal-today' : '') + '">' +
+        '<div class="cal-day-head">' +
+          '<span class="cal-day-name">' + CAL_DAY_NAMES[d.date.getDay()] + (isToday ? ' · היום' : '') + '</span>' +
+          '<span class="cal-day-date">' + d.date.getDate() + '/' + (d.date.getMonth() + 1) + '</span>' +
+        '</div>' +
+        '<div class="cal-events">' + evHtml + '</div>' +
+      '</div>'
+    );
+  }).join("");
+}
+
+function renderCalEvent(ev) {
+  const time = ev.allDay
+    ? '<span class="cal-event-time allday">כל היום</span>'
+    : '<span class="cal-event-time">' + escapeHtml(ev.startLabel) + '–' + escapeHtml(ev.endLabel) + '</span>';
+  const loc = ev.location
+    ? '<span class="cal-event-loc">📍 ' + escapeHtml(ev.location) + '</span>' : '';
+  return (
+    '<div class="cal-event">' +
+      time +
+      '<span class="cal-event-title">' + escapeHtml(ev.title || "(ללא כותרת)") + '</span>' +
+      loc +
     '</div>'
   );
 }
