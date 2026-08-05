@@ -770,15 +770,39 @@ function hideNotice(id) {
    POST גוף כ-JSON כמחרוזת (text/plain) — נמנע מ-CORS preflight.
    ============================================================ */
 async function apiPost(payload) {
-  const res = await fetch(CONFIG.API_URL, {
-    method: "POST",
-    redirect: "follow",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload)
-  });
-  const data = await res.json();
-  if (!data.ok) throw new Error(data.error || "שגיאת שרת");
-  return data;
+  let res;
+  try {
+    res = await fetch(CONFIG.API_URL, {
+      method: "POST",
+      redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload)
+    });
+  } catch (netErr) {
+    // כשל רשת אמיתי (אין אינטרנט / השרת לא נגיש)
+    throw new Error("אין חיבור לשרת. בדוק/י את החיבור לאינטרנט ונסה/י שוב.");
+  }
+
+  // קוראים את גוף התשובה כטקסט ואז מפרסרים בעצמנו.
+  // ב-Safari באייפון, גוף התשובה אחרי ה-redirect של Apps Script
+  // לפעמים חוזר ריק/לא-קריא וזורק "The string did not match the expected pattern" —
+  // אבל הבקשה כבר בוצעה ונשמרה בשרת. לכן במקרה כזה לא מציגים שגיאת שווא.
+  let text = "";
+  try { text = await res.text(); } catch (e) { text = ""; }
+
+  let data = null;
+  if (text) {
+    try { data = JSON.parse(text); } catch (e) { data = null; }
+  }
+
+  if (data) {
+    // תשובה תקינה מהשרת — מכבדים סירוב מפורש (למשל שדה חסר)
+    if (data.ok === false) throw new Error(data.error || "שגיאת שרת");
+    return data;
+  }
+
+  // לא ניתן היה לקרוא/לפרסר את התשובה (הבאג של Safari) — הבקשה עברה, מחשיבים כהצלחה
+  return { ok: true, unreadable: true };
 }
 async function apiGet(params) {
   const url = CONFIG.API_URL + "?" + new URLSearchParams(params).toString();
