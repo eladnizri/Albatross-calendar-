@@ -185,6 +185,16 @@
     }
     .field .req { color: var(--gold); margin-inline-start: 3px; }
 
+    /* שורת סימון (יום שלם / טווח ימים) */
+    .check-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px; cursor: pointer; user-select: none;
+      color: var(--text-dim); font-size: 14px; font-weight: 600;
+    }
+    .check-row input[type="checkbox"] {
+      width: 18px; height: 18px; accent-color: var(--gold); cursor: pointer; flex: none;
+    }
+
     .control {
       width: 100%;
       background: rgba(10, 14, 20, 0.6);
@@ -559,11 +569,24 @@
             </div>
 
             <div class="field">
-              <label for="date">תאריך <span class="req">*</span></label>
+              <label for="date"><span id="dateLabel">תאריך</span> <span class="req">*</span></label>
               <input class="control" id="date" type="date" required />
             </div>
 
-            <div class="row-2">
+            <label class="check-row">
+              <input type="checkbox" id="multiDay" onchange="toggleMultiDay()" />
+              <span>טווח של כמה ימים</span>
+            </label>
+            <div class="field hidden" id="endDateField">
+              <label for="endDate">עד תאריך <span class="req">*</span></label>
+              <input class="control" id="endDate" type="date" />
+            </div>
+
+            <label class="check-row">
+              <input type="checkbox" id="allDay" onchange="toggleAllDay()" />
+              <span>יום שלם — ללא שעות</span>
+            </label>
+            <div class="row-2" id="timeRow">
               <div class="field">
                 <label for="startTime">שעת התחלה <span class="req">*</span></label>
                 <input class="control" id="startTime" type="time" required />
@@ -739,6 +762,8 @@ const CONFIG = {
 let REQUESTS = [];
 let currentFilter = "all";
 const NONE_TYPE = "ללא"; // ערך סמן ל"בלי סוג" — מוסתר בתצוגה וביומן
+const ALLDAY = "יום שלם"; // ערך סמן ל"יום שלם ללא שעות" (נשמר בשדות השעה, ה-Backend לא משתנה)
+const DATE_RANGE_SEP = "~"; // מפריד לטווח ימים בתוך שדה התאריך (start~end)
 const USING_BACKEND = !!CONFIG.API_URL && CONFIG.API_URL.startsWith("http");
 const LS_KEY = "albatross_requests";
 
@@ -826,22 +851,60 @@ document.getElementById("requestForm").addEventListener("submit", async function
   e.preventDefault();
   hideNotice("formNotice");
 
+  const allDay = document.getElementById("allDay").checked;
+  const multiDay = document.getElementById("multiDay").checked;
+  const startDate = val("date");
+  const endDate = multiDay ? val("endDate") : "";
+
+  // ולידציה של תאריכים
+  if (!startDate) {
+    showNotice("formNotice", "err", "יש לבחור תאריך.");
+    return;
+  }
+  if (multiDay) {
+    if (!endDate) {
+      showNotice("formNotice", "err", "יש לבחור תאריך סיום לטווח הימים.");
+      return;
+    }
+    if (endDate < startDate) {
+      showNotice("formNotice", "err", "תאריך הסיום חייב להיות אחרי תאריך ההתחלה.");
+      return;
+    }
+  }
+
+  // ולידציה של שעות (רק אם לא נבחר "יום שלם")
+  let startTime, endTime;
+  if (allDay) {
+    startTime = ALLDAY;
+    endTime = ALLDAY;
+  } else {
+    startTime = val("startTime");
+    endTime = val("endTime");
+    if (!startTime || !endTime) {
+      showNotice("formNotice", "err", "יש לבחור שעת התחלה ושעת סיום (או לסמן \"יום שלם\").");
+      return;
+    }
+    // השוואת שעות רלוונטית רק ליום בודד (בטווח ימים השעות על ימים שונים)
+    if (!multiDay && endTime <= startTime) {
+      showNotice("formNotice", "err", "שעת הסיום חייבת להיות אחרי שעת ההתחלה.");
+      return;
+    }
+  }
+
+  // קידוד טווח ימים בתוך שדה התאריך (start~end) — ה-Backend מקבל מחרוזת ולא משתנה
+  const dateField = multiDay ? (startDate + DATE_RANGE_SEP + endDate) : startDate;
+
   const payload = {
     action: "create",
     requesterName: val("requesterName"),
     scheduleName: val("scheduleName"),
-    date: val("date"),
-    startTime: val("startTime"),
-    endTime: val("endTime"),
+    date: dateField,
+    startTime: startTime,
+    endTime: endTime,
     // אם לא נבחר סוג — שולחים ערך סמן "ללא" (הסתרה בתצוגה),
     // כדי לעבוד גם מול Backend ישן שדורש שדה סוג לא-ריק.
     type: val("type") || NONE_TYPE
   };
-
-  if (payload.endTime <= payload.startTime) {
-    showNotice("formNotice", "err", "שעת הסיום חייבת להיות אחרי שעת ההתחלה.");
-    return;
-  }
 
   const btn = document.getElementById("submitBtn");
   btn.disabled = true;
@@ -861,6 +924,7 @@ document.getElementById("requestForm").addEventListener("submit", async function
       lsSave(arr);
     }
     this.reset();
+    resetFormExtras();
     showNotice("formNotice", "ok", "✔ הבקשה נשלחה בהצלחה והועברה לאישור המפקד.");
   } catch (err) {
     showNotice("formNotice", "err", "שליחת הבקשה נכשלה: " + err.message);
@@ -871,6 +935,30 @@ document.getElementById("requestForm").addEventListener("submit", async function
 });
 
 function val(id) { return document.getElementById(id).value.trim(); }
+
+/* ---------- טופס: "יום שלם" ו"טווח ימים" ---------- */
+function toggleAllDay() {
+  const on = document.getElementById("allDay").checked;
+  document.getElementById("timeRow").classList.toggle("hidden", on);
+  document.getElementById("startTime").required = !on;
+  document.getElementById("endTime").required = !on;
+}
+function toggleMultiDay() {
+  const on = document.getElementById("multiDay").checked;
+  document.getElementById("endDateField").classList.toggle("hidden", !on);
+  document.getElementById("endDate").required = on;
+  document.getElementById("dateLabel").textContent = on ? "מתאריך" : "תאריך";
+  // תאריך הסיום לא יכול להיות לפני תאריך ההתחלה
+  document.getElementById("endDate").min = document.getElementById("date").value || "";
+}
+// אחרי איפוס הטופס — מחזירים את שדות הזמן/הטווח למצב ברירת המחדל
+function resetFormExtras() {
+  document.getElementById("allDay").checked = false;
+  document.getElementById("multiDay").checked = false;
+  toggleAllDay();
+  toggleMultiDay();
+  document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+}
 
 /* ============================================================
    Admin login
@@ -943,7 +1031,7 @@ function renderRequests() {
         <div class="compact-row">
           <span class="badge st-${status}">${statusLabel[status]}</span>
           <span class="compact-title">${escapeHtml(r.scheduleName)}</span>
-          <span class="compact-meta">${escapeHtml(r.requesterName)} · ${escapeHtml(formatDate(r.date))} · ${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}${(r.type && r.type !== NONE_TYPE) ? " · " + escapeHtml(r.type) : ""}</span>
+          <span class="compact-meta">${escapeHtml(r.requesterName)} · ${escapeHtml(formatDate(r.date))} · ${timeLabel(r)}${(r.type && r.type !== NONE_TYPE) ? " · " + escapeHtml(r.type) : ""}</span>
           <span class="compact-actions">
             ${status === "approved" ? `<a class="compact-link" href="${buildCalendarLink(r)}" target="_blank" rel="noopener">פתח ביומן ↗</a>` : ``}
             <button class="compact-undo" onclick="updateStatus('${r.id}','pending')" title="החזר לממתין">↩ החזר</button>
@@ -967,7 +1055,7 @@ function renderRequests() {
         </div>
         <div class="req-meta">
           <span>📅 <b>${escapeHtml(formatDate(r.date))}</b></span>
-          <span>⏱️ <b>${escapeHtml(r.startTime)}–${escapeHtml(r.endTime)}</b></span>
+          <span>⏱️ <b>${timeLabel(r)}</b></span>
         </div>
         <div class="req-actions">
           <button class="btn btn-ok" onclick="approve('${r.id}')">אשר והוסף ליומן</button>
@@ -1013,8 +1101,18 @@ async function updateStatus(id, status) {
    Google Calendar "add to calendar" link
    ============================================================ */
 function buildCalendarLink(r) {
-  const start = toGCalDate(r.date, r.startTime);
-  const end = toGCalDate(r.date, r.endTime);
+  const { startDate, endDate } = parseDateField(r.date);
+  const allDay = (r.startTime === ALLDAY || r.endTime === ALLDAY);
+
+  let dates;
+  if (allDay) {
+    // אירוע "יום שלם" — פורמט תאריך בלבד. בגוגל תאריך הסיום לא-כולל (היום שאחרי האחרון)
+    dates = ymdOnly(startDate) + "/" + ymdOnly(addDays(endDate, 1));
+  } else {
+    // אירוע עם שעות (יום בודד או טווח ימים — שעת התחלה ביום הראשון, סיום ביום האחרון)
+    dates = toGCalDate(startDate, r.startTime) + "/" + toGCalDate(endDate, r.endTime);
+  }
+
   // כותרת האירוע = שם הלו"ז בלבד (ללא הקידומת "לו\"ז אלבטרוס:")
   const title = r.scheduleName;
   let details = `מבקש: ${r.requesterName}`;
@@ -1023,15 +1121,36 @@ function buildCalendarLink(r) {
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: title,
-    dates: `${start}/${end}`,
+    dates: dates,
     details: details
   });
   return "https://calendar.google.com/calendar/render?" + params.toString();
 }
 
+// מפרק שדה תאריך: "start~end" → טווח, אחרת יום בודד (start=end)
+function parseDateField(v) {
+  const s = String(v || "");
+  if (s.includes(DATE_RANGE_SEP)) {
+    const [a, b] = s.split(DATE_RANGE_SEP);
+    return { startDate: a, endDate: b };
+  }
+  return { startDate: s, endDate: s };
+}
+// "2026-07-27" -> "20260727"
+function ymdOnly(date) { return String(date).replace(/-/g, ""); }
+// מוסיף n ימים לתאריך "yyyy-MM-dd" ומחזיר "yyyy-MM-dd"
+function addDays(iso, n) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + n);
+  const mm = String(dt.getMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getDate()).padStart(2, "0");
+  return dt.getFullYear() + "-" + mm + "-" + dd;
+}
+
 // "2026-07-27" + "09:30" -> "20260727T093000" (זמן מקומי / floating)
 function toGCalDate(date, time) {
-  const d = date.replace(/-/g, "");
+  const d = String(date).replace(/-/g, "");
   const t = (time || "00:00").replace(":", "") + "00";
   return d + "T" + t;
 }
@@ -1041,8 +1160,19 @@ function toGCalDate(date, time) {
    ============================================================ */
 function formatDate(iso) {
   if (!iso) return "";
-  const [y, m, d] = iso.split("-");
+  const s = String(iso);
+  // טווח ימים "start~end" → "dd/mm/yyyy – dd/mm/yyyy"
+  if (s.includes(DATE_RANGE_SEP)) {
+    const [a, b] = s.split(DATE_RANGE_SEP);
+    return formatDate(a) + " – " + formatDate(b);
+  }
+  const [y, m, d] = s.split("-");
   return `${d}/${m}/${y}`;
+}
+// תווית שעות לתצוגה — "יום שלם" כשאין שעות, אחרת "start–end" (מוגן)
+function timeLabel(r) {
+  if (r.startTime === ALLDAY || r.endTime === ALLDAY) return ALLDAY;
+  return escapeHtml(r.startTime) + "–" + escapeHtml(r.endTime);
 }
 function escapeHtml(s) {
   return String(s == null ? "" : s)
@@ -1330,6 +1460,12 @@ function resetPeople() {
   }
   // default date = today
   document.getElementById("date").value = new Date().toISOString().slice(0, 10);
+  // תאריך הסיום (בטווח ימים) לא יכול להיות לפני תאריך ההתחלה
+  document.getElementById("date").addEventListener("change", function () {
+    const end = document.getElementById("endDate");
+    end.min = this.value || "";
+    if (end.value && end.value < this.value) end.value = this.value;
+  });
   // keep admin logged-in within the session
   if (sessionStorage.getItem("albatross_admin") === "1") {
     // מציג את הלוח רק אם המשתמש עובר ללשונית הניהול
