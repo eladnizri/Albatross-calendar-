@@ -461,12 +461,10 @@
 
     /* ---------- שאווזיטרוס (בוחר אצבעות) ---------- */
     .shawazi-stage {
-      position: relative;
-      width: 100%;
-      height: calc(100vh - 150px);
-      height: calc(100dvh - 150px);
-      min-height: 400px;
-      background: #05070d;
+      position: fixed; inset: 0;
+      width: 100vw; height: 100vh; height: 100dvh;
+      z-index: 60;
+      background: #05070d; /* גיבוי — הקנבס מצייר מעליו מדרג נייבי בסגנון האפליקציה */
       overflow: hidden;
       touch-action: none;
       -webkit-user-select: none; user-select: none;
@@ -474,6 +472,13 @@
     }
     .shawazi-stage canvas {
       display: block; width: 100%; height: 100%; touch-action: none;
+    }
+    .shawazi-back {
+      position: absolute; z-index: 3; margin: 0;
+      top: max(16px, env(safe-area-inset-top));
+      inset-inline-start: 16px;
+      background: rgba(10, 22, 51, 0.6);
+      backdrop-filter: blur(6px);
     }
     .shawazi-hint {
       position: absolute; inset: 0;
@@ -484,9 +489,14 @@
     }
     .shawazi-emoji { font-size: 46px; }
     .shawazi-title {
-      font-size: 30px; font-weight: 800; letter-spacing: 0.06em; color: var(--text);
+      font-size: 34px; font-weight: 800; letter-spacing: 0.08em;
+      background: linear-gradient(180deg, #f2f6ff, var(--gold-2) 70%, var(--gold));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
     }
     .shawazi-sub { color: var(--text-dim); font-size: 15px; line-height: 1.7; }
+
+    /* כשמסך שאווזיטרוס פעיל — נועלים גלילה בעמוד (המשחק ממלא את כל המסך) */
+    body.shawazi-active { overflow: hidden; }
 
     /* ---------- בחירת גרון ---------- */
     .pool-note { font-size: 13px; color: var(--text-dim); margin: -4px 0 14px; }
@@ -774,11 +784,9 @@
 
   <!-- ============ SHAWAZI (שאווזיטרוס — בוחר אצבעות) ============ -->
   <section id="screenShawazi" class="hidden">
-    <div class="wrap">
-      <button class="back-btn" onclick="showScreen('home')">→ מסך ראשי</button>
-    </div>
     <div id="shawaziStage" class="shawazi-stage">
       <canvas id="shawaziCanvas"></canvas>
+      <button class="back-btn shawazi-back" onclick="showScreen('home')">→ מסך ראשי</button>
       <div id="shawaziHint" class="shawazi-hint">
         <div class="shawazi-emoji">👆</div>
         <div class="shawazi-title">שאווזיטרוס</div>
@@ -1252,6 +1260,7 @@ function renderScreen(name) {
   Object.entries(SCREENS).forEach(([key, id]) =>
     document.getElementById(id).classList.toggle("hidden", key !== name)
   );
+  document.body.classList.toggle("shawazi-active", name === "shawazi");
   if (name === "waves") initWaves();
   if (name === "picker") renderPicker();
   if (name === "shawazi") initShawazi(); else leaveShawazi();
@@ -1376,6 +1385,7 @@ let shDeadline = 0;         // performance.now() שבו הספירה נגמרת
 let shPickAnim = 0;         // התקדמות אנימציית הבחירה 0..1
 let shRaf = null;
 let shCanvas = null, shCtx = null, shDpr = 1;
+let shBg = null; // מדרג רקע נייבי (בסגנון האפליקציה) שנבנה מחדש בכל resize
 let shInited = false;
 
 function initShawazi() {
@@ -1403,6 +1413,12 @@ function resizeShawazi() {
   shDpr = window.devicePixelRatio || 1;
   shCanvas.width = Math.max(1, Math.round(rect.width * shDpr));
   shCanvas.height = Math.max(1, Math.round(rect.height * shDpr));
+  // מדרג רקע בצבעי האפליקציה (נייבי עמוק) — כהה מספיק כדי שהטבעות הצבעוניות יבלטו
+  const g = shCtx.createLinearGradient(0, 0, 0, shCanvas.height);
+  g.addColorStop(0, "#05070d");
+  g.addColorStop(0.55, "#081227");
+  g.addColorStop(1, "#0a1633");
+  shBg = g;
 }
 
 function resetShawazi() {
@@ -1505,7 +1521,7 @@ function drawShawazi(now) {
   if (!shCtx) return;
   const W = shCanvas.width, H = shCanvas.height;
   shCtx.clearRect(0, 0, W, H);
-  shCtx.fillStyle = "#05070d";
+  shCtx.fillStyle = shBg || "#05070d";
   shCtx.fillRect(0, 0, W, H);
 
   const base = 46 * shDpr;
