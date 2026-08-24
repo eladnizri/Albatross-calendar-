@@ -459,6 +459,35 @@
     .wave-hours { display: flex; gap: 2px; margin-top: 4px; direction: ltr; }
     .wave-hours span { flex: 1; text-align: center; font-size: 9.5px; color: var(--text-faint); }
 
+    /* ---------- שאווזיטרוס (בוחר אצבעות) ---------- */
+    .shawazi-stage {
+      position: relative;
+      width: 100%;
+      height: calc(100vh - 150px);
+      height: calc(100dvh - 150px);
+      min-height: 400px;
+      background: #05070d;
+      overflow: hidden;
+      touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      -webkit-touch-callout: none;
+    }
+    .shawazi-stage canvas {
+      display: block; width: 100%; height: 100%; touch-action: none;
+    }
+    .shawazi-hint {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; text-align: center;
+      gap: 12px; padding: 24px; pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    .shawazi-emoji { font-size: 46px; }
+    .shawazi-title {
+      font-size: 30px; font-weight: 800; letter-spacing: 0.06em; color: var(--text);
+    }
+    .shawazi-sub { color: var(--text-dim); font-size: 15px; line-height: 1.7; }
+
     /* ---------- בחירת גרון ---------- */
     .pool-note { font-size: 13px; color: var(--text-dim); margin: -4px 0 14px; }
     .pick-result { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -534,6 +563,11 @@
         <button class="nav-card" onclick="showScreen('picker')">
           <span class="nav-icon">🎲</span>
           <span class="nav-info"><b>בחירת גרון</b><small>הגרלה אקראית מחברי היחידה</small></span>
+          <span class="nav-arrow">‹</span>
+        </button>
+        <button class="nav-card" onclick="showScreen('shawazi')">
+          <span class="nav-icon">👆</span>
+          <span class="nav-info"><b>שאווזיטרוס</b><small>כל אחד מניח אצבע — אחת נבחרת</small></span>
           <span class="nav-arrow">‹</span>
         </button>
       </nav>
@@ -734,6 +768,21 @@
           </div>
           <button class="ghost-btn" style="margin-top:14px" onclick="resetPeople()">↺ אפס לרשימת ברירת המחדל</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SHAWAZI (שאווזיטרוס — בוחר אצבעות) ============ -->
+  <section id="screenShawazi" class="hidden">
+    <div class="wrap">
+      <button class="back-btn" onclick="showScreen('home')">→ מסך ראשי</button>
+    </div>
+    <div id="shawaziStage" class="shawazi-stage">
+      <canvas id="shawaziCanvas"></canvas>
+      <div id="shawaziHint" class="shawazi-hint">
+        <div class="shawazi-emoji">👆</div>
+        <div class="shawazi-title">שאווזיטרוס</div>
+        <div class="shawazi-sub">כל אחד מניח אצבע על המסך —<br>אחרי 3 שניות אחת נבחרת 🎲</div>
       </div>
     </div>
   </section>
@@ -1187,7 +1236,8 @@ const SCREENS = {
   home: "screenHome",
   schedule: "screenSchedule",
   waves: "screenWaves",
-  picker: "screenPicker"
+  picker: "screenPicker",
+  shawazi: "screenShawazi"
 };
 function showScreen(name) {
   if (!SCREENS[name]) name = "home";
@@ -1204,6 +1254,7 @@ function renderScreen(name) {
   );
   if (name === "waves") initWaves();
   if (name === "picker") renderPicker();
+  if (name === "shawazi") initShawazi(); else leaveShawazi();
   window.scrollTo({ top: 0 });
 }
 window.addEventListener("hashchange", () =>
@@ -1306,6 +1357,217 @@ function renderSpot(spot, data) {
       '<div class="wave-hours">' + hourLabels + '</div>' +
     '</div>'
   );
+}
+
+/* ============================================================
+   שאווזיטרוס — בוחר אצבעות (multi-touch), הכל בצד הלקוח
+   ============================================================ */
+const SHAWAZI_COLORS = ["#ff4d5e", "#4dd06a", "#4d9bff", "#ffd24d",
+                        "#c04dff", "#4dece0", "#ff894d", "#ff4dbf",
+                        "#8cff4d", "#4d5eff"];
+const SHAWAZI_DELAY = 3000; // 3 שניות אחרי שהאצבעות התייצבו
+const SHAWAZI_MIN = 2;      // מינימום אצבעות כדי להתחיל ספירה
+
+let shTouches = new Map();  // identifier -> { x, y, color }
+let shColorIdx = 0;
+let shState = "idle";       // idle | counting | picked
+let shWinner = null;        // identifier של המנצח
+let shDeadline = 0;         // performance.now() שבו הספירה נגמרת
+let shPickAnim = 0;         // התקדמות אנימציית הבחירה 0..1
+let shRaf = null;
+let shCanvas = null, shCtx = null, shDpr = 1;
+let shInited = false;
+
+function initShawazi() {
+  shCanvas = document.getElementById("shawaziCanvas");
+  shCtx = shCanvas.getContext("2d");
+  if (!shInited) {
+    shInited = true;
+    bindShawaziTouch();
+    window.addEventListener("resize", resizeShawazi);
+    window.addEventListener("orientationchange", resizeShawazi);
+  }
+  resetShawazi();
+  resizeShawazi();
+  startShawaziLoop();
+}
+function leaveShawazi() {
+  if (!shInited) return;
+  stopShawaziLoop();
+  resetShawazi();
+}
+
+function resizeShawazi() {
+  if (!shCanvas) return;
+  const rect = shCanvas.getBoundingClientRect();
+  shDpr = window.devicePixelRatio || 1;
+  shCanvas.width = Math.max(1, Math.round(rect.width * shDpr));
+  shCanvas.height = Math.max(1, Math.round(rect.height * shDpr));
+}
+
+function resetShawazi() {
+  shTouches.clear();
+  shColorIdx = 0;
+  shState = "idle";
+  shWinner = null;
+  shDeadline = 0;
+  shPickAnim = 0;
+  updateShawaziHint();
+}
+function updateShawaziHint() {
+  const hint = document.getElementById("shawaziHint");
+  if (hint) hint.style.opacity = (shTouches.size === 0 && shState === "idle") ? "1" : "0";
+}
+
+/* --- מגע --- */
+function bindShawaziTouch() {
+  const stage = document.getElementById("shawaziStage");
+  const opts = { passive: false };
+  stage.addEventListener("touchstart", onShawaziStart, opts);
+  stage.addEventListener("touchmove", onShawaziMove, opts);
+  stage.addEventListener("touchend", onShawaziEnd, opts);
+  stage.addEventListener("touchcancel", onShawaziEnd, opts);
+}
+function shPos(touch) {
+  const rect = shCanvas.getBoundingClientRect();
+  return {
+    x: (touch.clientX - rect.left) * shDpr,
+    y: (touch.clientY - rect.top) * shDpr
+  };
+}
+function onShawaziStart(e) {
+  e.preventDefault();
+  if (shState === "picked") resetShawazi(); // מגע חדש אחרי בחירה = סבב חדש
+  for (const t of e.changedTouches) {
+    const p = shPos(t);
+    const color = SHAWAZI_COLORS[shColorIdx % SHAWAZI_COLORS.length];
+    shColorIdx++;
+    shTouches.set(t.identifier, { x: p.x, y: p.y, color: color });
+  }
+  updateShawaziHint();
+  rescheduleShawazi();
+}
+function onShawaziMove(e) {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    const cur = shTouches.get(t.identifier);
+    if (cur) { const p = shPos(t); cur.x = p.x; cur.y = p.y; }
+  }
+}
+function onShawaziEnd(e) {
+  e.preventDefault();
+  for (const t of e.changedTouches) shTouches.delete(t.identifier);
+  if (shState === "picked") {
+    if (shTouches.size === 0) resetShawazi(); // כל האצבעות ירדו = איפוס
+    return;
+  }
+  updateShawaziHint();
+  rescheduleShawazi();
+}
+// כל הוספה/הסרה של אצבע מאפסת את הספירה (כמו באפליקציה המקורית)
+function rescheduleShawazi() {
+  if (shState === "picked") return;
+  if (shTouches.size >= SHAWAZI_MIN) {
+    shState = "counting";
+    shDeadline = performance.now() + SHAWAZI_DELAY;
+  } else {
+    shState = "idle";
+    shDeadline = 0;
+  }
+}
+
+/* --- בחירה --- */
+function pickShawazi() {
+  const ids = [...shTouches.keys()];
+  if (ids.length < SHAWAZI_MIN) { shState = "idle"; return; }
+  shWinner = ids[Math.floor(Math.random() * ids.length)];
+  shState = "picked";
+  shPickAnim = 0;
+  if (navigator.vibrate) { try { navigator.vibrate([40, 60, 140]); } catch (e) {} }
+}
+
+/* --- לולאת ציור --- */
+function startShawaziLoop() {
+  if (shRaf) return;
+  const tick = (now) => {
+    if (shState === "counting" && now >= shDeadline) pickShawazi();
+    if (shState === "picked" && shPickAnim < 1) shPickAnim = Math.min(1, shPickAnim + 0.045);
+    drawShawazi(now);
+    shRaf = requestAnimationFrame(tick);
+  };
+  shRaf = requestAnimationFrame(tick);
+}
+function stopShawaziLoop() {
+  if (shRaf) { cancelAnimationFrame(shRaf); shRaf = null; }
+}
+
+function drawShawazi(now) {
+  if (!shCtx) return;
+  const W = shCanvas.width, H = shCanvas.height;
+  shCtx.clearRect(0, 0, W, H);
+  shCtx.fillStyle = "#05070d";
+  shCtx.fillRect(0, 0, W, H);
+
+  const base = 46 * shDpr;
+  const pulse = 1 + 0.06 * Math.sin(now / 300);
+
+  shTouches.forEach((t, id) => {
+    let r = base * pulse, alpha = 1, winner = false;
+    if (shState === "picked") {
+      if (id === shWinner) { r = base * (1 + 0.9 * shPickAnim) * pulse; winner = true; }
+      else { alpha = 1 - shPickAnim; r = base * (1 - 0.25 * shPickAnim); }
+    }
+    if (alpha > 0.02) drawShawaziFinger(t.x, t.y, r, t.color, alpha, winner);
+  });
+
+  if (shState === "counting") {
+    const n = Math.max(1, Math.ceil((shDeadline - now) / 1000));
+    drawShawaziCenter(String(n), "אל תזיזו!", "#ffffff", "rgba(122,162,238,0.85)");
+  } else if (shState === "idle" && shTouches.size === 1) {
+    drawShawaziCenter("", "צריך עוד אצבע אחת לפחות…", "#ffffff", "transparent");
+  }
+}
+
+function drawShawaziFinger(x, y, r, color, alpha, winner) {
+  shCtx.save();
+  shCtx.globalAlpha = alpha;
+  shCtx.shadowColor = color;
+  shCtx.shadowBlur = (winner ? 60 : 28) * shDpr;
+  // טבעת חיצונית
+  shCtx.beginPath();
+  shCtx.arc(x, y, r, 0, Math.PI * 2);
+  shCtx.lineWidth = 6 * shDpr;
+  shCtx.strokeStyle = color;
+  shCtx.stroke();
+  // מילוי פנימי
+  shCtx.beginPath();
+  shCtx.arc(x, y, r * 0.72, 0, Math.PI * 2);
+  shCtx.globalAlpha = alpha * (winner ? 0.95 : 0.6);
+  shCtx.fillStyle = color;
+  shCtx.fill();
+  shCtx.restore();
+}
+
+function drawShawaziCenter(bigText, subText, color, glow) {
+  const cx = shCanvas.width / 2, cy = shCanvas.height / 2;
+  shCtx.save();
+  shCtx.textAlign = "center";
+  shCtx.textBaseline = "middle";
+  if (bigText) {
+    shCtx.globalAlpha = 0.92;
+    shCtx.fillStyle = color;
+    shCtx.font = "800 " + (110 * shDpr) + "px Heebo, Assistant, sans-serif";
+    if (glow !== "transparent") { shCtx.shadowColor = glow; shCtx.shadowBlur = 30 * shDpr; }
+    shCtx.fillText(bigText, cx, cy);
+    shCtx.shadowBlur = 0;
+  }
+  if (subText) {
+    shCtx.globalAlpha = 0.85;
+    shCtx.fillStyle = "#a3b4d4";
+    shCtx.font = "600 " + (22 * shDpr) + "px Heebo, Assistant, sans-serif";
+    shCtx.fillText(subText, cx, cy + (bigText ? 92 * shDpr : 0));
+  }
+  shCtx.restore();
 }
 
 /* ============================================================
