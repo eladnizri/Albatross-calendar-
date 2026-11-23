@@ -436,28 +436,77 @@
     .nav-info small { color: var(--text-dim); font-size: 13px; }
     .nav-arrow { margin-inline-start: auto; color: var(--gold-2); font-size: 22px; }
 
-    /* ---------- גובה גלים ---------- */
-    .spot-list { display: flex; flex-direction: column; gap: 14px; }
-    .spot-card {
-      background: linear-gradient(180deg, rgba(22,32,46,0.9), rgba(16,21,33,0.9));
+    /* ---------- לוח משימות (Trello) ---------- */
+    .board-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .board-top .btn { width: auto; padding: 10px 16px; font-size: 14.5px; }
+    .board-sync { color: var(--text-dim); font-size: 12.5px; margin-inline-start: auto; display: inline-flex; align-items: center; gap: 7px; }
+    .board-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 8px var(--ok); transition: background .3s; }
+    .board-dot.stale { background: var(--text-faint); box-shadow: none; }
+
+    .board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 12px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+    .board.dragging { scroll-snap-type: none; }
+    .board::-webkit-scrollbar { height: 8px; }
+    .board::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+    .column {
+      flex: 0 0 min(84%, 285px);
+      background: rgba(10, 20, 45, 0.5);
       border: 1px solid var(--line-soft);
       border-radius: var(--radius);
-      padding: 16px 18px;
+      padding: 12px 10px 14px;
+      scroll-snap-align: center;
+      display: flex; flex-direction: column; min-height: 140px;
+      transition: border-color .15s, background .15s;
     }
-    .spot-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-    .spot-name { font-weight: 700; font-size: 16px; }
-    .wave-max { font-size: 13.5px; color: var(--text-dim); margin: 6px 0 12px; }
-    .wave-max b { color: var(--text); font-size: 15px; }
-    .badge.lv-calm { color: #8fe0b6; background: var(--ok-soft); }
-    .badge.lv-mid  { color: var(--gold-2); background: var(--gold-soft); }
-    .badge.lv-high { color: #f0a6a4; background: var(--danger-soft); }
-    .wave-bars { display: flex; align-items: flex-end; gap: 2px; height: 64px; direction: ltr; }
-    .wave-bars .bar { flex: 1; border-radius: 3px 3px 0 0; min-height: 3px; }
-    .bar.lv-calm { background: linear-gradient(180deg, #7fd8ab, #3d9a70); }
-    .bar.lv-mid  { background: linear-gradient(180deg, var(--gold-2), var(--gold)); }
-    .bar.lv-high { background: linear-gradient(180deg, #f0a6a4, #c04844); }
-    .wave-hours { display: flex; gap: 2px; margin-top: 4px; direction: ltr; }
-    .wave-hours span { flex: 1; text-align: center; font-size: 9.5px; color: var(--text-faint); }
+    .column.drop-target { border-color: var(--gold); background: var(--gold-soft); }
+    .col-head { display: flex; align-items: center; gap: 8px; padding: 2px 6px 11px; }
+    .col-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+    .dot-todo { background: #7aa2ee; } .dot-doing { background: var(--gold); } .dot-done { background: var(--ok); }
+    .col-title { font-weight: 700; font-size: 15px; }
+    .col-count { margin-inline-start: auto; font-size: 12px; color: var(--text-dim); background: var(--line-soft); border-radius: 999px; padding: 2px 10px; }
+    .col-cards { display: flex; flex-direction: column; gap: 9px; flex: 1; min-height: 44px; }
+
+    .task-card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(22, 32, 46, 0.95), rgba(16, 21, 33, 0.95));
+      border: 1px solid var(--line-soft); border-radius: var(--radius-sm);
+      padding: 11px 12px; cursor: grab; touch-action: pan-y;
+      box-shadow: 0 2px 8px -4px rgba(0, 0, 0, 0.5);
+      user-select: none; -webkit-user-select: none;
+    }
+    .task-card:active { cursor: grabbing; }
+    .task-card.ghost-src { opacity: 0.32; }
+    .task-title { font-weight: 600; font-size: 14.5px; line-height: 1.35; word-break: break-word; }
+    .task-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 4px; white-space: pre-wrap;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .task-meta { display: flex; align-items: center; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+    .task-who { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--text); background: var(--line-soft); border-radius: 999px; padding: 2px 9px 2px 3px; }
+    .task-ava { width: 19px; height: 19px; border-radius: 50%; color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+    .task-due { font-size: 11.5px; color: var(--text-dim); display: inline-flex; align-items: center; gap: 4px; }
+    .task-due.overdue { color: #f0a6a4; }
+    .task-due.soon { color: var(--gold-2); }
+
+    .task-ghost { position: fixed; z-index: 400; pointer-events: none; width: 260px; transform: rotate(2.5deg);
+      box-shadow: 0 20px 44px -10px rgba(0, 0, 0, 0.75); opacity: 0.96; }
+    .col-empty { color: var(--text-faint); font-size: 12.5px; text-align: center; padding: 16px 6px; border: 1px dashed var(--line-soft); border-radius: var(--radius-sm); }
+
+    /* ---------- מודאל עריכת משימה ---------- */
+    .modal-back { position: fixed; inset: 0; background: rgba(3, 7, 18, 0.74); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+      display: flex; align-items: flex-end; justify-content: center; z-index: 500; }
+    .modal {
+      background: var(--panel-solid); border: 1px solid var(--line);
+      border-radius: 20px 20px 0 0; width: 100%; max-width: 480px; max-height: 92vh; overflow-y: auto;
+      box-shadow: var(--shadow); padding: 20px 20px 24px;
+      animation: modalUp .22s ease;
+    }
+    @keyframes modalUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @media (min-width: 560px) { .modal-back { align-items: center; padding: 20px; } .modal { border-radius: 20px; } }
+    .modal h3 { font-size: 18px; margin-bottom: 2px; }
+    .modal .field { margin-bottom: 0; margin-top: 15px; }
+    .modal-chips { display: flex; gap: 8px; }
+    .modal-chips .chip { flex: 1; text-align: center; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 22px; align-items: stretch; }
+    .btn-neutral { background: rgba(10, 14, 20, 0.6); color: var(--text-dim); border: 1px solid var(--line-soft); }
+    .btn-del { background: var(--danger-soft); color: #f0a6a4; border: 1px solid rgba(217, 83, 79, 0.35); width: auto; flex: none; padding: 14px 16px; }
 
     /* ---------- שאווזיטרוס (בוחר אצבעות) ---------- */
     .shawazi-stage {
@@ -565,9 +614,9 @@
           <span class="nav-info"><b>קביעת לו"ז</b><small>הגשת בקשות ומסך בקרה למפקד</small></span>
           <span class="nav-arrow">‹</span>
         </button>
-        <button class="nav-card" onclick="showScreen('waves')">
-          <span class="nav-icon">🌊</span>
-          <span class="nav-info"><b>גובה גלים</b><small>תחזית ים — חיפה, אשדוד ואילת</small></span>
+        <button class="nav-card" onclick="showScreen('tasks')">
+          <span class="nav-icon">🗂️</span>
+          <span class="nav-info"><b>לוח משימות</b><small>לוח משותף בסגנון טרלו — לעשות · בתהליך · בוצע</small></span>
           <span class="nav-arrow">‹</span>
         </button>
         <button class="nav-card" onclick="showScreen('picker')">
@@ -698,21 +747,24 @@
   </div>
   </section>
 
-  <!-- ============ WAVES (גובה גלים) ============ -->
-  <section id="screenWaves" class="hidden">
+  <!-- ============ TASKS (לוח משימות) ============ -->
+  <section id="screenTasks" class="hidden">
     <div class="wrap">
       <button class="back-btn" onclick="showScreen('home')">→ מסך ראשי</button>
       <div class="panel">
         <div class="panel-head">
-          <h2>🌊 גובה גלים</h2>
-          <p>תחזית ימית לחופי ישראל — עד שבוע קדימה.</p>
+          <h2>🗂️ לוח משימות</h2>
+          <p>לוח משותף לכל היחידה. גררו כרטיס בין העמודות, או הקישו עליו לעריכה.</p>
         </div>
         <div class="panel-body">
-          <div class="field">
-            <label for="waveDate">תאריך</label>
-            <input class="control" id="waveDate" type="date" />
+          <div class="board-top">
+            <button class="btn btn-gold" onclick="openTaskModal('todo')">＋ משימה חדשה</button>
+            <span class="board-sync" id="tasksSync">
+              <span class="board-dot" id="tasksSyncDot"></span><span id="tasksSyncText">מסתנכרן…</span>
+            </span>
           </div>
-          <div id="waveResults" class="spot-list"></div>
+          <div class="board" id="taskBoard"></div>
+          <div class="notice" id="tasksNotice"></div>
         </div>
       </div>
     </div>
@@ -810,7 +862,13 @@ const CONFIG = {
   ADMIN_PASSWORD: "albatross",
 
   // שם היומן ותיאור ברירת מחדל שיופיעו בקישור "הוסף ליומן"
-  CALENDAR_TITLE_PREFIX: "לו\"ז אלבטרוס"
+  CALENDAR_TITLE_PREFIX: "לו\"ז אלבטרוס",
+
+  // ---- Supabase (לוח המשימות המשותף) ----
+  // כתובת הפרויקט והמפתח הציבורי (publishable). בטוח לחשוף בצד הלקוח —
+  // ההרשאות נשלטות דרך RLS בטבלה albatross_tasks.
+  SUPABASE_URL: "https://gytxwjlicawlfdehszil.supabase.co",
+  SUPABASE_KEY: "sb_publishable_w7pTF5fWOfc7zGlQS5c61Q_x6IFM0Ir"
 };
 
 /* ============================================================
@@ -1243,7 +1301,7 @@ function escapeHtml(s) {
 const SCREENS = {
   home: "screenHome",
   schedule: "screenSchedule",
-  waves: "screenWaves",
+  tasks: "screenTasks",
   picker: "screenPicker",
   shawazi: "screenShawazi"
 };
@@ -1261,7 +1319,7 @@ function renderScreen(name) {
     document.getElementById(id).classList.toggle("hidden", key !== name)
   );
   document.body.classList.toggle("shawazi-active", name === "shawazi");
-  if (name === "waves") initWaves();
+  if (name === "tasks") initTasks(); else stopTasksPolling();
   if (name === "picker") renderPicker();
   if (name === "shawazi") initShawazi(); else leaveShawazi();
   window.scrollTo({ top: 0 });
@@ -1271,101 +1329,351 @@ window.addEventListener("hashchange", () =>
 );
 
 /* ============================================================
-   גובה גלים — Open-Meteo Marine (חינמי, ללא מפתח)
+   לוח משימות משותף (סגנון טרלו) — מגובה ב-Supabase
    ============================================================ */
-/* לכל אזור מספר נקודות חלופיות — מנסים לפי הסדר עד שמתקבלים נתונים.
-   קריטי במיוחד לאילת: מפרץ אילת צר ותאי הרשת של מודל הגלים
-   עלולים להיחשב "יבשה" — לכן יורדים דרומה לתוך המפרץ עד שיש תא ים. */
-const WAVE_SPOTS = [
-  { name: "חיפה · צפון",   points: [[32.86, 34.95], [32.83, 34.88], [32.90, 34.85]] },
-  { name: "אשדוד · דרום",  points: [[31.82, 34.60], [31.80, 34.55], [31.85, 34.50]] },
-  { name: "אילת · ים אדום", points: [[29.50, 34.92], [29.42, 34.90], [29.25, 34.85], [29.00, 34.75], [28.70, 34.65], [28.40, 34.55]] }
+const TASK_COLUMNS = [
+  { key: "todo",  title: "לעשות",  dot: "dot-todo"  },
+  { key: "doing", title: "בתהליך", dot: "dot-doing" },
+  { key: "done",  title: "בוצע",   dot: "dot-done"  }
 ];
-let wavesInited = false;
-function initWaves() {
-  const inp = document.getElementById("waveDate");
-  if (!wavesInited) {
-    wavesInited = true;
-    const today = new Date();
-    inp.min = isoDate(today);
-    inp.max = isoDate(new Date(today.getTime() + 6 * 86400000));
-    inp.value = inp.min;
-    inp.addEventListener("change", loadWaves);
-  }
-  loadWaves();
-}
-function isoDate(d) { return d.toISOString().slice(0, 10); }
+const AVATAR_COLORS = ["#3563d1", "#7aa2ee", "#4fb98a", "#e0a04f", "#b06be0", "#e06b8a", "#4fb9b9", "#8a9bd1"];
 
-async function fetchSpotData(spot, date) {
-  // מנסה כל נקודה חלופית עד שמתקבלים נתוני גלים תקינים
-  for (const [lat, lon] of spot.points) {
-    try {
-      const url = "https://marine-api.open-meteo.com/v1/marine" +
-        "?latitude=" + lat + "&longitude=" + lon +
-        "&hourly=wave_height&start_date=" + date + "&end_date=" + date +
-        "&cell_selection=sea&timezone=Asia%2FJerusalem";
-      const res = await fetch(url);
-      if (!res.ok) continue;
-      const data = await res.json();
-      const heights = (data.hourly && data.hourly.wave_height) || [];
-      if (heights.some(v => v != null)) return data;
-    } catch (e) { /* ננסה את הנקודה הבאה */ }
-  }
-  return null;
+let TASKS = [];
+let tasksInited = false;
+let tasksPollTimer = null;
+let tasksBusy = false;        // חוסם ריענון אוטומטי בזמן גרירה / מודאל פתוח
+let editingTaskId = null;
+let drag = null;
+
+/* ---------- גישה ל-Supabase REST ---------- */
+function sbReady() {
+  return CONFIG.SUPABASE_URL && CONFIG.SUPABASE_URL.startsWith("http") && !!CONFIG.SUPABASE_KEY;
+}
+function sbFetch(path, options) {
+  options = options || {};
+  const headers = Object.assign({
+    "apikey": CONFIG.SUPABASE_KEY,
+    "Authorization": "Bearer " + CONFIG.SUPABASE_KEY,
+    "Content-Type": "application/json"
+  }, options.headers || {});
+  return fetch(CONFIG.SUPABASE_URL + "/rest/v1/" + path, Object.assign({}, options, { headers }));
 }
 
-async function loadWaves() {
-  const date = document.getElementById("waveDate").value;
-  const box = document.getElementById("waveResults");
-  box.innerHTML = '<div class="empty"><span class="spinner" style="border-top-color:var(--gold)"></span> טוען תחזית ימית...</div>';
-  // כל אזור עצמאי — כשל באזור אחד לא מפיל את השאר
-  const cards = await Promise.all(WAVE_SPOTS.map(async (spot) => {
-    const data = await fetchSpotData(spot, date);
-    if (!data) {
-      return '<div class="spot-card"><div class="spot-head"><span class="spot-name">' +
-        escapeHtml(spot.name) + '</span></div><div class="empty">אין נתוני גלים זמינים לאזור זה כרגע.</div></div>';
+/* ---------- טעינה / סנכרון ---------- */
+function initTasks() {
+  if (!tasksInited) {
+    tasksInited = true;
+    document.getElementById("taskBoard").addEventListener("pointerdown", onBoardPointerDown);
+  }
+  startTasksPolling();
+  loadTasks(true);
+}
+function startTasksPolling() {
+  stopTasksPolling();
+  tasksPollTimer = setInterval(() => { if (!tasksBusy) loadTasks(false); }, 4500);
+}
+function stopTasksPolling() {
+  if (tasksPollTimer) { clearInterval(tasksPollTimer); tasksPollTimer = null; }
+}
+function setSync(state) {
+  const dot = document.getElementById("tasksSyncDot");
+  const txt = document.getElementById("tasksSyncText");
+  if (!dot || !txt) return;
+  if (state === "ok")           { dot.classList.remove("stale"); txt.textContent = "מעודכן"; }
+  else if (state === "loading") { dot.classList.add("stale");    txt.textContent = "מסתנכרן…"; }
+  else                          { dot.classList.add("stale");    txt.textContent = "לא מחובר"; }
+}
+
+async function loadTasks(showSpinner) {
+  const board = document.getElementById("taskBoard");
+  if (!sbReady()) {
+    if (board) board.innerHTML = '<div class="col-empty" style="flex:1">לוח המשימות לא הוגדר. יש להגדיר SUPABASE_URL ו-SUPABASE_KEY ב-CONFIG.</div>';
+    setSync("off");
+    return;
+  }
+  if (showSpinner) setSync("loading");
+  try {
+    const res = await sbFetch("albatross_tasks?select=*&order=position.asc,created_at.asc");
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    TASKS = await res.json();
+    setSync("ok");
+    if (!tasksBusy) renderBoard();
+  } catch (e) {
+    setSync("off");
+    if (showSpinner && board && !TASKS.length) {
+      board.innerHTML = '<div class="col-empty" style="flex:1">טעינת הלוח נכשלה. בדקו את החיבור לאינטרנט ונסו שוב.</div>';
     }
-    return renderSpot(spot, data);
-  }));
-  box.innerHTML = cards.join("");
-}
-
-function waveLevel(h) {
-  if (h < 0.5) return { cls: "lv-calm", label: "ים שקט" };
-  if (h < 1.25) return { cls: "lv-mid", label: "גלים בינוניים" };
-  return { cls: "lv-high", label: "ים גלי" };
-}
-
-function renderSpot(spot, data) {
-  const times = (data.hourly && data.hourly.time) || [];
-  const heights = (data.hourly && data.hourly.wave_height) || [];
-  const valid = heights.filter(v => v != null);
-  if (!valid.length) {
-    return '<div class="spot-card"><div class="spot-head"><span class="spot-name">' +
-      escapeHtml(spot.name) + '</span></div><div class="empty">אין נתונים לתאריך זה.</div></div>';
   }
-  const max = Math.max(...valid);
-  const lvl = waveLevel(max);
-  const scale = Math.max(max, 0.6); // סקאלה מינימלית כדי שים שקט לא ייראה ריק
-  let bars = "", hourLabels = "";
-  times.forEach((t, i) => {
-    const h = heights[i];
-    if (h == null) return;
-    const hh = t.slice(11, 16);
-    const pct = Math.max(5, Math.round((h / scale) * 100));
-    bars += '<div class="bar ' + waveLevel(h).cls + '" style="height:' + pct + '%" title="' + hh + ' · ' + h.toFixed(1) + ' מ\'"></div>';
-    const hourNum = parseInt(t.slice(11, 13), 10);
-    hourLabels += '<span>' + (hourNum % 3 === 0 ? String(hourNum).padStart(2, "0") : "") + '</span>';
-  });
+}
+
+/* ---------- ציור הלוח ---------- */
+function renderBoard() {
+  const board = document.getElementById("taskBoard");
+  if (!board) return;
+  board.innerHTML = TASK_COLUMNS.map(col => {
+    const items = TASKS.filter(t => t.status === col.key);
+    const cards = items.length ? items.map(renderTaskCard).join("") : '<div class="col-empty">אין משימות</div>';
+    return (
+      '<div class="column" data-status="' + col.key + '">' +
+        '<div class="col-head">' +
+          '<span class="col-dot ' + col.dot + '"></span>' +
+          '<span class="col-title">' + col.title + '</span>' +
+          '<span class="col-count">' + items.length + '</span>' +
+        '</div>' +
+        '<div class="col-cards" data-status="' + col.key + '">' + cards + '</div>' +
+      '</div>'
+    );
+  }).join("");
+}
+function avatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+function dueInfo(due) {
+  if (!due) return null;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const d = new Date(due + "T00:00:00");
+  const diff = Math.round((d - today) / 86400000);
+  let cls = "";
+  if (diff < 0) cls = "overdue";
+  else if (diff <= 2) cls = "soon";
+  return { cls: cls, label: formatDate(due) };
+}
+function renderTaskCard(t) {
+  const name = (t.assignee || "").trim();
+  const who = name
+    ? '<span class="task-who"><span class="task-ava" style="background:' + avatarColor(name) + '">' +
+        escapeHtml(name.charAt(0)) + '</span>' + escapeHtml(name) + '</span>'
+    : "";
+  const di = dueInfo(t.due_date);
+  const due = di ? '<span class="task-due ' + di.cls + '">📅 ' + escapeHtml(di.label) + '</span>' : "";
+  const desc = t.description ? '<div class="task-desc">' + escapeHtml(t.description) + '</div>' : "";
+  const meta = (who || due) ? '<div class="task-meta">' + who + due + '</div>' : "";
   return (
-    '<div class="spot-card">' +
-      '<div class="spot-head"><span class="spot-name">' + escapeHtml(spot.name) + '</span>' +
-      '<span class="badge ' + lvl.cls + '">' + lvl.label + '</span></div>' +
-      '<div class="wave-max">גובה גלים מרבי: <b>' + max.toFixed(1) + ' מ\'</b></div>' +
-      '<div class="wave-bars">' + bars + '</div>' +
-      '<div class="wave-hours">' + hourLabels + '</div>' +
+    '<div class="task-card" data-id="' + t.id + '">' +
+      '<div class="task-title">' + escapeHtml(t.title) + '</div>' +
+      desc + meta +
     '</div>'
   );
+}
+
+/* ---------- גרירה (עכבר + מגע) והקשה לעריכה ---------- */
+function onBoardPointerDown(e) {
+  if (e.button != null && e.button !== 0) return;
+  const card = e.target.closest(".task-card");
+  if (!card) return;
+  drag = {
+    id: card.dataset.id, card: card, pointerId: e.pointerId,
+    startX: e.clientX, startY: e.clientY, started: false,
+    ghost: null, offsetX: 0, offsetY: 0, dropStatus: null, dropBefore: null
+  };
+  window.addEventListener("pointermove", onBoardPointerMove, { passive: false });
+  window.addEventListener("pointerup", onBoardPointerUp);
+  window.addEventListener("pointercancel", onBoardPointerUp);
+}
+function beginDrag() {
+  drag.started = true;
+  tasksBusy = true;
+  document.getElementById("taskBoard").classList.add("dragging");
+  const rect = drag.card.getBoundingClientRect();
+  drag.offsetX = drag.startX - rect.left;
+  drag.offsetY = drag.startY - rect.top;
+  const ghost = drag.card.cloneNode(true);
+  ghost.classList.add("task-ghost");
+  ghost.style.width = rect.width + "px";
+  document.body.appendChild(ghost);
+  drag.ghost = ghost;
+  drag.card.classList.add("ghost-src");
+  moveGhost(drag.startX, drag.startY);
+}
+function moveGhost(x, y) {
+  drag.ghost.style.left = (x - drag.offsetX) + "px";
+  drag.ghost.style.top = (y - drag.offsetY) + "px";
+}
+function onBoardPointerMove(e) {
+  if (!drag) return;
+  if (!drag.started) {
+    if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 8) return;
+    beginDrag();
+  }
+  e.preventDefault();
+  moveGhost(e.clientX, e.clientY);
+
+  drag.ghost.style.display = "none";
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  drag.ghost.style.display = "";
+  document.querySelectorAll(".column.drop-target").forEach(c => c.classList.remove("drop-target"));
+  const col = under && under.closest(".column");
+  if (col) {
+    col.classList.add("drop-target");
+    drag.dropStatus = col.dataset.status;
+    const list = [...col.querySelectorAll(".task-card")].filter(c => c !== drag.card);
+    let before = null;
+    for (const c of list) {
+      const r = c.getBoundingClientRect();
+      if (e.clientY < r.top + r.height / 2) { before = c; break; }
+    }
+    drag.dropBefore = before ? before.dataset.id : null;
+  } else {
+    drag.dropStatus = null;
+  }
+  autoScrollBoard(e.clientX);
+}
+function autoScrollBoard(x) {
+  const board = document.getElementById("taskBoard");
+  const r = board.getBoundingClientRect();
+  const edge = 56;
+  if (x < r.left + edge) board.scrollLeft -= 16;
+  else if (x > r.right - edge) board.scrollLeft += 16;
+}
+async function onBoardPointerUp() {
+  window.removeEventListener("pointermove", onBoardPointerMove);
+  window.removeEventListener("pointerup", onBoardPointerUp);
+  window.removeEventListener("pointercancel", onBoardPointerUp);
+  if (!drag) return;
+  const d = drag;
+  drag = null;
+
+  if (!d.started) { openTaskModal(null, d.id); return; }  // הקשה = פתיחת עריכה
+
+  if (d.ghost) d.ghost.remove();
+  d.card.classList.remove("ghost-src");
+  document.getElementById("taskBoard").classList.remove("dragging");
+  document.querySelectorAll(".column.drop-target").forEach(c => c.classList.remove("drop-target"));
+
+  if (d.dropStatus) await moveTask(d.id, d.dropStatus, d.dropBefore);
+  tasksBusy = false;
+  renderBoard();
+  loadTasks(false);
+}
+async function moveTask(id, status, beforeId) {
+  const task = TASKS.find(t => t.id === id);
+  if (!task) return;
+  const colTasks = TASKS.filter(t => t.status === status && t.id !== id).sort((a, b) => a.position - b.position);
+  let newPos;
+  if (beforeId) {
+    const idx = colTasks.findIndex(t => t.id === beforeId);
+    const next = colTasks[idx], prev = colTasks[idx - 1];
+    newPos = prev ? (prev.position + next.position) / 2 : next.position - 1;
+  } else {
+    const last = colTasks[colTasks.length - 1];
+    newPos = last ? last.position + 1 : 0;
+  }
+  task.status = status; task.position = newPos;   // עדכון אופטימי
+  renderBoard();
+  try {
+    await sbFetch("albatross_tasks?id=eq." + encodeURIComponent(id), {
+      method: "PATCH", headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ status: status, position: newPos })
+    });
+  } catch (e) { taskNotice("עדכון המשימה נכשל — נסו שוב.", "err"); }
+}
+
+/* ---------- מודאל יצירה / עריכה ---------- */
+function openTaskModal(defaultStatus, id) {
+  if (document.getElementById("taskModalBack")) return;
+  tasksBusy = true;
+  stopTasksPolling();
+  editingTaskId = id || null;
+  const t = id ? TASKS.find(x => x.id === id) : null;
+  const status = t ? t.status : (defaultStatus || "todo");
+  const roster = (typeof PEOPLE !== "undefined" && PEOPLE) ? PEOPLE : [];
+  const peopleOpts = ['<option value="">— ללא אחראי —</option>'].concat(
+    roster.map(p => '<option value="' + escapeHtml(p.name) + '"' + (t && t.assignee === p.name ? " selected" : "") + '>' + escapeHtml(p.name) + '</option>')
+  ).join("");
+  const chips = TASK_COLUMNS.map(c =>
+    '<button type="button" class="chip' + (c.key === status ? " active" : "") + '" data-status="' + c.key + '" onclick="selectTaskStatus(this)">' + c.title + '</button>'
+  ).join("");
+  const back = document.createElement("div");
+  back.className = "modal-back";
+  back.id = "taskModalBack";
+  back.dataset.status = status;
+  back.innerHTML =
+    '<div class="modal" onclick="event.stopPropagation()">' +
+      '<h3>' + (t ? "עריכת משימה" : "משימה חדשה") + '</h3>' +
+      '<div class="field"><label>כותרת <span class="req">*</span></label>' +
+        '<input class="control" id="tmTitle" maxlength="120" placeholder="מה צריך לעשות?" value="' + (t ? escapeHtml(t.title) : "") + '"></div>' +
+      '<div class="field"><label>תיאור / פרטים</label>' +
+        '<textarea class="control" id="tmDesc" maxlength="1000" placeholder="פרטים נוספים (לא חובה)">' + (t ? escapeHtml(t.description || "") : "") + '</textarea></div>' +
+      '<div class="field"><label>אחראי</label>' +
+        '<select class="control" id="tmAssignee">' + peopleOpts + '</select></div>' +
+      '<div class="field"><label>תאריך יעד</label>' +
+        '<input class="control" id="tmDue" type="date" value="' + (t && t.due_date ? t.due_date : "") + '"></div>' +
+      '<div class="field"><label>עמודה</label><div class="modal-chips" id="tmStatus">' + chips + '</div></div>' +
+      '<div class="modal-actions">' +
+        (t ? '<button class="btn btn-del" onclick="deleteTask()">מחק</button>' : '') +
+        '<button class="btn btn-neutral" onclick="closeTaskModal()">ביטול</button>' +
+        '<button class="btn btn-gold" onclick="saveTask()">' + (t ? "שמירה" : "הוספה") + '</button>' +
+      '</div>' +
+    '</div>';
+  back.addEventListener("click", closeTaskModal);
+  document.body.appendChild(back);
+  setTimeout(() => { const el = document.getElementById("tmTitle"); if (el && !t) el.focus(); }, 60);
+}
+function selectTaskStatus(btn) {
+  document.querySelectorAll("#tmStatus .chip").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  document.getElementById("taskModalBack").dataset.status = btn.dataset.status;
+}
+function closeTaskModal() {
+  const back = document.getElementById("taskModalBack");
+  if (back) back.remove();
+  editingTaskId = null;
+  tasksBusy = false;
+  startTasksPolling();
+  loadTasks(false);
+}
+async function saveTask() {
+  const titleEl = document.getElementById("tmTitle");
+  const title = titleEl.value.trim();
+  if (!title) { titleEl.focus(); return; }
+  const status = document.getElementById("taskModalBack").dataset.status || "todo";
+  const payload = {
+    title: title,
+    description: document.getElementById("tmDesc").value.trim(),
+    assignee: document.getElementById("tmAssignee").value,
+    due_date: document.getElementById("tmDue").value || null,
+    status: status
+  };
+  const btns = document.querySelectorAll("#taskModalBack .modal-actions .btn");
+  btns.forEach(b => b.disabled = true);
+  try {
+    if (editingTaskId) {
+      await sbFetch("albatross_tasks?id=eq." + encodeURIComponent(editingTaskId), {
+        method: "PATCH", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+      });
+    } else {
+      const colTasks = TASKS.filter(t => t.status === status);
+      payload.position = colTasks.length ? Math.max.apply(null, colTasks.map(t => t.position)) + 1 : 0;
+      await sbFetch("albatross_tasks", {
+        method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(payload)
+      });
+    }
+    closeTaskModal();
+  } catch (e) {
+    btns.forEach(b => b.disabled = false);
+    taskNotice("השמירה נכשלה — בדקו חיבור ונסו שוב.", "err");
+  }
+}
+async function deleteTask() {
+  if (!editingTaskId) return;
+  if (!confirm("למחוק את המשימה?")) return;
+  const id = editingTaskId;
+  try {
+    await sbFetch("albatross_tasks?id=eq." + encodeURIComponent(id), {
+      method: "DELETE", headers: { "Prefer": "return=minimal" }
+    });
+    closeTaskModal();
+  } catch (e) { taskNotice("המחיקה נכשלה — נסו שוב.", "err"); }
+}
+function taskNotice(msg, type) {
+  const n = document.getElementById("tasksNotice");
+  if (!n) return;
+  n.textContent = msg;
+  n.className = "notice show " + (type || "info");
+  clearTimeout(taskNotice._t);
+  taskNotice._t = setTimeout(() => { n.className = "notice"; }, 4000);
 }
 
 /* ============================================================
