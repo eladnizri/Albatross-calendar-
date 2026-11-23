@@ -586,6 +586,7 @@
     .roster-del:hover { color: #f0a6a4; background: var(--danger-soft); }
     .add-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 16px; }
     @media (min-width: 540px) { .add-grid { grid-template-columns: 2fr 1.2fr 1fr auto; } }
+    .home-settings-row { text-align: center; margin-top: 10px; }
 
     .hidden { display: none !important; }
   </style>
@@ -630,6 +631,9 @@
           <span class="nav-arrow">‹</span>
         </button>
       </nav>
+      <div class="home-settings-row">
+        <button class="ghost-btn" onclick="showScreen('settings')">⚙️ הגדרות היחידה — אנשים ותפקידים</button>
+      </div>
     </div>
   </section>
 
@@ -808,27 +812,43 @@
         </div>
       </div>
 
-      <div class="panel" style="margin-top:16px">
+      <div style="text-align:center;margin-top:16px;padding:0 4px">
+        <button class="ghost-btn" onclick="showScreen('settings')">⚙️ לניהול אנשי היחידה — פתח הגדרות</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS (הגדרות — אנשי היחידה) ============ -->
+  <section id="screenSettings" class="hidden">
+    <div class="wrap">
+      <button class="back-btn" onclick="showScreen('home')">→ מסך ראשי</button>
+      <div class="panel">
         <div class="panel-head">
-          <h2>ניהול הרשימה</h2>
-          <p>שינויים נשמרים במכשיר הזה בלבד ולא משפיעים על מכשירים אחרים.</p>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <h2>⚙️ אנשי היחידה</h2>
+            <span class="board-sync" id="settingsSync">
+              <span class="board-dot" id="settingsSyncDot"></span><span id="settingsSyncText">מסתנכרן…</span>
+            </span>
+          </div>
+          <p>רשימה משותפת לכולם — משמשת לבחירת גרון, שאווזיטרוס ולוח משימות.</p>
         </div>
         <div class="panel-body">
-          <div id="rosterList"></div>
-          <div class="add-grid">
-            <input class="control" id="newName" type="text" placeholder="שם מלא" />
-            <select class="control" id="newRole">
+          <div id="settingsRoster"></div>
+          <div class="add-grid" style="margin-top:16px">
+            <input class="control" id="snName" type="text" placeholder="שם מלא" />
+            <select class="control" id="snRole">
               <option value="טכנאים">טכנאים</option>
               <option value="מפעילים">מפעילים</option>
               <option value="מטיסי חוץ">מטיסי חוץ</option>
             </select>
-            <select class="control" id="newService">
+            <select class="control" id="snService">
               <option value="חפש">חפש</option>
               <option value="קבע">קבע</option>
             </select>
-            <button class="btn btn-gold" style="padding:12px 22px" onclick="addPerson()">הוסף</button>
+            <button class="btn btn-gold" style="padding:12px 22px" onclick="settingsAddPerson()">הוסף</button>
           </div>
-          <button class="ghost-btn" style="margin-top:14px" onclick="resetPeople()">↺ אפס לרשימת ברירת המחדל</button>
+          <button class="ghost-btn" style="margin-top:14px" onclick="settingsResetPeople()">↺ אפס לרשימת ברירת המחדל</button>
+          <div class="notice" id="settingsNotice"></div>
         </div>
       </div>
     </div>
@@ -1303,6 +1323,7 @@ const SCREENS = {
   schedule: "screenSchedule",
   tasks: "screenTasks",
   picker: "screenPicker",
+  settings: "screenSettings",
   shawazi: "screenShawazi"
 };
 function showScreen(name) {
@@ -1321,6 +1342,7 @@ function renderScreen(name) {
   document.body.classList.toggle("shawazi-active", name === "shawazi");
   if (name === "tasks") initTasks(); else stopTasksPolling();
   if (name === "picker") renderPicker();
+  if (name === "settings") initSettings(); else stopSettingsPolling();
   if (name === "shawazi") initShawazi(); else leaveShawazi();
   window.scrollTo({ top: 0 });
 }
@@ -1691,6 +1713,9 @@ let shState = "idle";       // idle | counting | picked
 let shWinner = null;        // identifier של המנצח
 let shWinnerColor = "#ffffff";
 let shWinnerPos = null;     // מיקום המנצח בזמן הבחירה (גיבוי אם האצבע מורמת)
+let shNameMap = new Map();  // identifier -> שם אדם מ-PEOPLE
+let shNamePool = [];        // שמות בסדר ערבוב לסבב הנוכחי
+let shNameIdx = 0;
 let shDeadline = 0;         // performance.now() שבו הספירה נגמרת
 let shPickAt = 0;           // performance.now() ברגע הבחירה (בסיס לאנימציה)
 let shParticles = [];       // ניצוצות הפיצוץ
@@ -1756,6 +1781,9 @@ function resetShawazi() {
   shPickAt = 0;
   shParticles = [];
   shRings = [];
+  shNameMap.clear();
+  shNamePool = shuffle(PEOPLE.map(p => p.name));
+  shNameIdx = 0;
   updateShawaziHint();
 }
 function updateShawaziHint() {
@@ -1788,6 +1816,10 @@ function onShawaziStart(e) {
     const color = SHAWAZI_COLORS[shColorIdx % SHAWAZI_COLORS.length];
     shColorIdx++;
     shTouches.set(t.identifier, { x: p.x, y: p.y, color: color });
+    if (shNamePool.length) {
+      shNameMap.set(t.identifier, shNamePool[shNameIdx % shNamePool.length]);
+      shNameIdx++;
+    }
   }
   updateShawaziHint();
   rescheduleShawazi();
@@ -2027,6 +2059,23 @@ function drawShawazi(now) {
       shCtx.fillText("👑", win.x, win.y - r - 34 * shDpr);
       shCtx.restore();
     }
+
+    // שם המנצח — נגלה אחרי חצי שנייה
+    const np = shClamp01((el - 0.5) / 0.4);
+    if (np > 0 && shNameMap.has(shWinner)) {
+      const winName = shNameMap.get(shWinner);
+      const ny = Math.min(win.y + r + 56 * shDpr, shCanvas.height - 72 * shDpr);
+      shCtx.save();
+      shCtx.globalAlpha = np;
+      shCtx.textAlign = "center";
+      shCtx.textBaseline = "middle";
+      shCtx.font = "700 " + (28 * shDpr) + "px Heebo, Assistant, sans-serif";
+      shCtx.fillStyle = "#ffffff";
+      shCtx.shadowColor = shWinnerColor;
+      shCtx.shadowBlur = 20 * shDpr;
+      shCtx.fillText(winName, win.x, ny);
+      shCtx.restore();
+    }
   }
 
   /* 7) טקסט */
@@ -2139,7 +2188,7 @@ function drawShawaziBottom(text, alpha) {
 }
 
 /* ============================================================
-   בחירת גרון — הגרלה אקראית
+   אנשי היחידה — נתונים משותפים דרך Supabase
    ============================================================ */
 const DEFAULT_PEOPLE = [
   { name: "אלעד נזרי",        role: "טכנאים",    service: "חפש" },
@@ -2151,21 +2200,53 @@ const DEFAULT_PEOPLE = [
   { name: "איתי נחמה",        role: "מטיסי חוץ", service: "חפש" },
   { name: "רועי צור",          role: "מטיסי חוץ", service: "קבע" }
 ];
-const PEOPLE_KEY = "albatross_people";
+let PEOPLE = DEFAULT_PEOPLE.map(p => ({ ...p })); // ברירת מחדל עד לטעינה מ-Supabase
+
 let pickerRole = "all";
 let pickerService = "all";
 let rollTimer = null;
 
-function loadPeople() {
+async function loadPeopleRemote(showSpinner) {
+  if (!sbReady()) return;
+  if (showSpinner) setSyncPeople("loading");
   try {
-    const v = JSON.parse(localStorage.getItem(PEOPLE_KEY));
-    if (Array.isArray(v) && v.length) return v;
-  } catch {}
-  return DEFAULT_PEOPLE.map(p => ({ ...p }));
+    const r = await sbFetch("albatross_people?select=*&order=sort_order.asc,created_at.asc");
+    if (!r.ok) throw new Error(r.status);
+    const data = await r.json();
+    if (!Array.isArray(data)) throw new Error("bad data");
+    if (data.length) {
+      PEOPLE = data;
+    } else {
+      await seedPeopleToSupabase();
+    }
+    setSyncPeople("ok");
+  } catch {
+    setSyncPeople("off");
+  }
 }
-function savePeople(list) { localStorage.setItem(PEOPLE_KEY, JSON.stringify(list)); }
-let PEOPLE = loadPeople();
 
+async function seedPeopleToSupabase() {
+  const batch = DEFAULT_PEOPLE.map((p, i) => ({ name: p.name, role: p.role, service: p.service, sort_order: i }));
+  try {
+    const r = await sbFetch("albatross_people", { method: "POST", headers: { "Prefer": "return=minimal" }, body: JSON.stringify(batch) });
+    if (!r.ok) return;
+    const r2 = await sbFetch("albatross_people?select=*&order=sort_order.asc,created_at.asc");
+    if (r2.ok) PEOPLE = await r2.json();
+  } catch {}
+}
+
+function setSyncPeople(state) {
+  const dot = document.getElementById("settingsSyncDot");
+  const txt = document.getElementById("settingsSyncText");
+  if (!dot || !txt) return;
+  if (state === "ok")           { dot.classList.remove("stale"); txt.textContent = "מעודכן"; }
+  else if (state === "loading") { dot.classList.add("stale");    txt.textContent = "מסתנכרן…"; }
+  else                          { dot.classList.add("stale");    txt.textContent = "לא מחובר"; }
+}
+
+/* ============================================================
+   בחירת גרון — הגרלה אקראית
+   ============================================================ */
 function pickerPool() {
   return PEOPLE.filter(p =>
     (pickerRole === "all" || p.role === pickerRole) &&
@@ -2189,13 +2270,13 @@ function bindPickerChips() {
 }
 
 function updatePoolNote() {
+  const el = document.getElementById("poolNote");
+  if (!el) return;
   const n = pickerPool().length;
-  document.getElementById("poolNote").textContent =
-    n ? "במאגר לפי הסינון: " + n + " אנשים" : "אין אנשים במאגר לפי הסינון הנוכחי";
+  el.textContent = n ? "במאגר לפי הסינון: " + n + " אנשים" : "אין אנשים במאגר לפי הסינון הנוכחי";
 }
 
 function renderPicker() {
-  renderRoster();
   updatePoolNote();
 }
 
@@ -2243,42 +2324,106 @@ function shuffle(a) {
   return a;
 }
 
-function renderRoster() {
-  const box = document.getElementById("rosterList");
+/* ============================================================
+   הגדרות — ניהול אנשי היחידה (Supabase, משותף)
+   ============================================================ */
+let settingsPollTimer = null;
+
+function initSettings() {
+  startSettingsPolling();
+  loadPeopleRemote(true).then(() => { renderSettingsRoster(); updatePoolNote(); });
+}
+
+function startSettingsPolling() {
+  stopSettingsPolling();
+  settingsPollTimer = setInterval(() => {
+    loadPeopleRemote(false).then(() => { renderSettingsRoster(); updatePoolNote(); });
+  }, 6000);
+}
+
+function stopSettingsPolling() {
+  if (settingsPollTimer) { clearInterval(settingsPollTimer); settingsPollTimer = null; }
+}
+
+function renderSettingsRoster() {
+  const box = document.getElementById("settingsRoster");
+  if (!box) return;
   if (!PEOPLE.length) {
     box.innerHTML = '<div class="empty">הרשימה ריקה — הוסף/י אנשים למטה.</div>';
-  } else {
-    box.innerHTML = PEOPLE.map((p, i) =>
-      '<div class="roster-row">' +
-        '<span class="roster-name">' + escapeHtml(p.name) + '</span>' +
-        '<span class="roster-tags">' +
-          '<span class="badge type">' + escapeHtml(p.role) + '</span>' +
-          '<span class="badge type">' + escapeHtml(p.service) + '</span>' +
-          '<button class="roster-del" onclick="removePerson(' + i + ')" title="הסר מהרשימה">✕</button>' +
-        '</span>' +
-      '</div>'
-    ).join("");
+    return;
   }
-  updatePoolNote();
+  box.innerHTML = PEOPLE.map(p =>
+    '<div class="roster-row">' +
+      '<span class="roster-name">' + escapeHtml(p.name) + '</span>' +
+      '<span class="roster-tags">' +
+        '<span class="badge type">' + escapeHtml(p.role) + '</span>' +
+        '<span class="badge type">' + escapeHtml(p.service) + '</span>' +
+        '<button class="roster-del" onclick="settingsRemovePerson(\'' + escapeHtml(String(p.id)) + '\')" title="הסר מהרשימה">✕</button>' +
+      '</span>' +
+    '</div>'
+  ).join("");
 }
-function removePerson(i) {
-  PEOPLE.splice(i, 1);
-  savePeople(PEOPLE);
-  renderRoster();
+
+async function settingsAddPerson() {
+  const nameEl = document.getElementById("snName");
+  const name = (nameEl.value || "").trim();
+  if (!name) { settingsNotice("יש להזין שם", "error"); return; }
+  const role = document.getElementById("snRole").value;
+  const service = document.getElementById("snService").value;
+  setSyncPeople("loading");
+  try {
+    const maxOrder = PEOPLE.length ? Math.max(...PEOPLE.map(p => p.sort_order || 0)) + 1 : 0;
+    const r = await sbFetch("albatross_people", {
+      method: "POST",
+      headers: { "Prefer": "return=minimal" },
+      body: JSON.stringify({ name, role, service, sort_order: maxOrder })
+    });
+    if (!r.ok) throw new Error(r.status);
+    nameEl.value = "";
+    await loadPeopleRemote(false);
+    renderSettingsRoster();
+    updatePoolNote();
+  } catch {
+    setSyncPeople("off");
+    settingsNotice("שגיאה בהוספה — בדוק חיבור", "error");
+  }
 }
-function addPerson() {
-  const name = val("newName");
-  if (!name) return;
-  PEOPLE.push({ name: name, role: val("newRole"), service: val("newService") });
-  savePeople(PEOPLE);
-  document.getElementById("newName").value = "";
-  renderRoster();
+
+async function settingsRemovePerson(id) {
+  setSyncPeople("loading");
+  try {
+    const r = await sbFetch("albatross_people?id=eq." + encodeURIComponent(id), { method: "DELETE" });
+    if (!r.ok) throw new Error(r.status);
+    await loadPeopleRemote(false);
+    renderSettingsRoster();
+    updatePoolNote();
+  } catch {
+    setSyncPeople("off");
+    settingsNotice("שגיאה בהסרה — בדוק חיבור", "error");
+  }
 }
-function resetPeople() {
-  if (!confirm("לאפס את הרשימה במכשיר זה לרשימת ברירת המחדל של היחידה?")) return;
-  localStorage.removeItem(PEOPLE_KEY);
-  PEOPLE = loadPeople();
-  renderRoster();
+
+async function settingsResetPeople() {
+  if (!confirm("לאפס את רשימת אנשי היחידה לברירת המחדל?\nהשינויים יחולו על כולם.")) return;
+  setSyncPeople("loading");
+  try {
+    await sbFetch("albatross_people?created_at=gt.1970-01-01T00:00:00Z", { method: "DELETE" });
+    await seedPeopleToSupabase();
+    renderSettingsRoster();
+    updatePoolNote();
+    setSyncPeople("ok");
+  } catch {
+    setSyncPeople("off");
+    settingsNotice("שגיאה באיפוס — בדוק חיבור", "error");
+  }
+}
+
+function settingsNotice(msg, type) {
+  const el = document.getElementById("settingsNotice");
+  if (!el) return;
+  el.className = "notice show " + (type || "info");
+  el.textContent = msg;
+  setTimeout(() => { el.className = "notice"; }, 3500);
 }
 
 /* ============================================================
@@ -2305,6 +2450,8 @@ function resetPeople() {
   }
   // בחירת גרון — האזנה לצ'יפים של הסינון
   bindPickerChips();
+  // טוען אנשי היחידה מ-Supabase ברקע
+  if (sbReady()) loadPeopleRemote(false).then(() => updatePoolNote());
   // מסך פתיחה (או מסך לפי ה-hash בכתובת)
   renderScreen(location.hash.replace("#", "") || "home");
 })();
