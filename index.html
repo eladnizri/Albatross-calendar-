@@ -2060,22 +2060,6 @@ function drawShawazi(now) {
       shCtx.restore();
     }
 
-    // שם המנצח — נגלה אחרי חצי שנייה
-    const np = shClamp01((el - 0.5) / 0.4);
-    if (np > 0 && shNameMap.has(shWinner)) {
-      const winName = shNameMap.get(shWinner);
-      const ny = Math.min(win.y + r + 56 * shDpr, shCanvas.height - 72 * shDpr);
-      shCtx.save();
-      shCtx.globalAlpha = np;
-      shCtx.textAlign = "center";
-      shCtx.textBaseline = "middle";
-      shCtx.font = "700 " + (28 * shDpr) + "px Heebo, Assistant, sans-serif";
-      shCtx.fillStyle = "#ffffff";
-      shCtx.shadowColor = shWinnerColor;
-      shCtx.shadowBlur = 20 * shDpr;
-      shCtx.fillText(winName, win.x, ny);
-      shCtx.restore();
-    }
   }
 
   /* 7) טקסט */
